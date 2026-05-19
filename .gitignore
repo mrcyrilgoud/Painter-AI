@@ -1,0 +1,14 @@
+node_modules
+dist
+.DS_Store
+*.log
+.env
+.env.local
+.vite
+server/dist
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Claude Code local-only settings (user-specific permissions)
+.claude/settings.local.json

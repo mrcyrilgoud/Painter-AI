@@ -1,0 +1,15 @@
+.app {
+  display: grid;
+  grid-template-rows: var(--header-h) 1fr var(--palette-h) var(--status-h);
+  height: 100vh;
+  width: 100vw;
+  background: var(--surface-0);
+  color: var(--text-1);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: var(--toolbox-w) 1fr var(--ai-panel-w);
+  min-height: 0;
+  overflow: hidden;
+}

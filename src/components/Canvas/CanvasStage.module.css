@@ -1,0 +1,111 @@
+.stage {
+  position: relative;
+  background: var(--surface-2);
+  background-image:
+    linear-gradient(var(--border-1) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-1) 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-position: -1px -1px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.canvasWrap {
+  position: relative;
+  background: #ffffff;
+  box-shadow: var(--shadow-1);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.layerStack {
+  position: absolute;
+  inset: 0;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+.preview {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+  image-rendering: pixelated;
+  /* Subtle pulse to indicate this is an unaccepted preview */
+  filter: drop-shadow(0 0 6px var(--ai-glow));
+}
+
+.selSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.marchingAnts {
+  animation: marching-ants 0.6s linear infinite;
+}
+
+.floatingActions {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 8px));
+  display: flex;
+  gap: 2px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+  padding: 3px;
+  z-index: 8;
+  pointer-events: auto;
+  animation: fade-up 140ms ease;
+}
+
+.floatingBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-size: 11px;
+}
+
+.floatingBtn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.faGlyph {
+  font-size: 12px;
+}
+
+.faLabel {
+  font-size: 11px;
+}
+
+.cmdkBtn .faGlyph {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.cmdkBtn:hover .faGlyph {
+  color: var(--accent);
+}

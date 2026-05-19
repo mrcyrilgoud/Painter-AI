@@ -1,0 +1,117 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 18vh;
+  z-index: 1000;
+  animation: scrim-in 120ms ease;
+}
+
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.bar {
+  width: min(640px, 92vw);
+  max-height: min(80vh, 720px);
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: bar-in 160ms ease;
+  overflow: hidden;
+}
+
+@keyframes bar-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modeChip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--ai-glow-soft);
+  color: var(--ai-glow);
+}
+
+.contextHint {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.input {
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 20px;
+  font-family: var(--font-ui);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.kbdHint {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
+.kbdHint kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  border: 1px solid var(--border-1);
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.dims {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.resultArea {
+  border-top: 1px solid var(--border-1);
+  padding-top: 10px;
+  margin-top: 2px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}

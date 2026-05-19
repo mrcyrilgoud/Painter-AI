@@ -1,0 +1,96 @@
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border-1);
+  height: var(--palette-h);
+}
+
+.activeBox {
+  position: relative;
+  width: 26px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.activeBoxPri,
+.activeBoxSec {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-2);
+  display: block;
+}
+
+.activeBoxPri {
+  left: 0;
+  top: 0;
+  z-index: 1;
+  box-shadow: 0 0 0 1.5px var(--surface-1), 0 0 0 2.5px var(--border-2);
+}
+
+.activeBoxSec {
+  right: 0;
+  bottom: 0;
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-1);
+  flex-shrink: 0;
+}
+
+.swatches {
+  display: flex;
+  gap: 2px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.swatches::-webkit-scrollbar {
+  display: none;
+}
+
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-1);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 80ms ease;
+}
+
+.swatch:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-3);
+  cursor: pointer;
+  font-family: var(--font-mono);
+}
+
+.custom input {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-1);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}

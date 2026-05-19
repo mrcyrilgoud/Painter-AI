@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "painter-ai",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:vite"],
+      "port": 5173,
+      "env": {
+        "VITE_AI_BACKEND": "codex",
+        "VITE_AI_SEGMENTER": "codex",
+        "VITE_AI_COPILOT": "codex"
+      }
+    }
+  ]
+}

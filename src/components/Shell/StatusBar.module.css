@@ -1,0 +1,35 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border-1);
+  height: var(--status-h);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.text {
+  flex-shrink: 0;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.cell {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  background: var(--surface-2);
+}
