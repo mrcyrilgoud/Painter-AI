@@ -30,15 +30,19 @@ export const smartSelectTool: ToolHandler = {
         const tctx = tmp.getContext("2d")!;
         tctx.drawImage(result.mask, 0, 0);
         const data = tctx.getImageData(0, 0, tmp.width, tmp.height).data;
-        let minX = tmp.width,
-          minY = tmp.height,
+        const W = tmp.width;
+        const H = tmp.height;
+        let minX = W,
+          minY = H,
           maxX = 0,
           maxY = 0,
           found = false;
-        for (let y = 0; y < tmp.height; y++) {
-          for (let x = 0; x < tmp.width; x++) {
-            const i = (y * tmp.width + x) * 4;
-            if (data[i] > 128) {
+        // Stride-based scan: increment by 4 per pixel, hoist the row index,
+        // skip the per-pixel multiply.
+        for (let y = 0; y < H; y++) {
+          const rowOff = y * W * 4;
+          for (let x = 0; x < W; x++) {
+            if (data[rowOff + x * 4] > 128) {
               found = true;
               if (x < minX) minX = x;
               if (x > maxX) maxX = x;
@@ -55,10 +59,10 @@ export const smartSelectTool: ToolHandler = {
         ctx.setSelection({
           x: minX,
           y: minY,
-          w: Math.max(1, maxX - minX),
-          h: Math.max(1, maxY - minY),
+          w: Math.max(1, maxX - minX + 1),
+          h: Math.max(1, maxY - minY + 1),
         });
-        ctx.setStatus(`Smart Select · ${maxX - minX}×${maxY - minY}`);
+        ctx.setStatus(`Smart Select · ${maxX - minX + 1}×${maxY - minY + 1}`);
       } finally {
         busy = false;
       }

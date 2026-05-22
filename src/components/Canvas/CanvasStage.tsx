@@ -182,6 +182,22 @@ export function CanvasStage() {
     activeHandlerRef.current = null;
   };
 
+  // Cancel any in-progress stroke if the window loses focus (e.g. user alt-tabs
+  // while holding the mouse button). Without this, drawingRef stays true and
+  // the next pointerMove produces a ghost stroke from the stale last position.
+  useEffect(() => {
+    const onBlur = () => {
+      if (!drawingRef.current) return;
+      drawingRef.current = false;
+      activeHandlerRef.current = null;
+      // Clear any overlay marks left by a cancelled selection/shape drag.
+      const o = overlayRef.current;
+      if (o) o.getContext("2d")!.clearRect(0, 0, o.width, o.height);
+    };
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

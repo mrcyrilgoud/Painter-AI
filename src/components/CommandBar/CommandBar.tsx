@@ -125,7 +125,7 @@ export function CommandBar() {
         />
         <div className={styles.footer}>
           <span className={styles.kbdHint}>
-            <kbd>⌘</kbd>+<kbd>↵</kbd> generate · <kbd>⎋</kbd> close
+            <kbd>↵</kbd> generate · <kbd>⇧</kbd>+<kbd>↵</kbd> new line · <kbd>⎋</kbd> close
           </span>
           <span className={styles.spacer} />
           <span className={styles.dims}>

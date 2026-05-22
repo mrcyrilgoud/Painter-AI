@@ -34,6 +34,7 @@ export function makeShapeTool(
       s.drawing = true;
       s.start = { x: p.x, y: p.y };
       s.snap = ctx.ctx.getImageData(0, 0, ctx.layer.canvas.width, ctx.layer.canvas.height);
+      ctx.clearOverlay();
     },
     onMove(ctx, p) {
       if (!s.drawing || !s.start) return;

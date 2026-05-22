@@ -1,7 +1,7 @@
 import { useEditorStore } from "../../state/editorStore";
 import { useUIStore } from "../../state/uiStore";
 import { useChatStore } from "../../state/chatStore";
-import { compositeBitmap, selectionToMask } from "../../utils/composite";
+import { compositeBitmap, selectionToMask, selectionToMaskBoundsPx } from "../../utils/composite";
 import { runOp } from "../../ai/runOp";
 import type { AIGenerateRequest, AIMode } from "../../ai/types";
 import styles from "./CanvasStage.module.css";
@@ -39,6 +39,9 @@ export function FloatingActions({ dimensions }: Props) {
       mode: a.mode,
       source,
       mask,
+      maskBoundsPx: editor.selection
+        ? selectionToMaskBoundsPx(editor.selection, editor.dimensions)
+        : undefined,
       prompt: prompt || a.label.toLowerCase(),
       references: editor.references,
       style: "none",

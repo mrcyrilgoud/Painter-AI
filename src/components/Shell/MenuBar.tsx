@@ -33,6 +33,13 @@ function useMenus(): Record<string, MenuItem[]> {
     resetProject(preset);
   };
 
+  const resizeCanvas = (preset: Exclude<CanvasPreset, "custom">) => {
+    const s = useEditorStore.getState();
+    const dirty = s.renderTick > 0;
+    if (dirty && !confirm("Resize the canvas? All layers will be reset to the new dimensions.")) return;
+    resetProject(preset, s.projectName);
+  };
+
   const saveProject = () => {
     const json = saveProjectJSON();
     const blob = new Blob([json], { type: "application/json" });
@@ -86,19 +93,19 @@ function useMenus(): Record<string, MenuItem[]> {
     Image: [
       {
         label: "Canvas Size · 512²",
-        action: () => useEditorStore.getState().resetProject("sq-512", useEditorStore.getState().projectName),
+        action: () => resizeCanvas("sq-512"),
       },
       {
         label: "Canvas Size · 1024²",
-        action: () => useEditorStore.getState().resetProject("sq-1024", useEditorStore.getState().projectName),
+        action: () => resizeCanvas("sq-1024"),
       },
       {
         label: "Canvas Size · Portrait",
-        action: () => useEditorStore.getState().resetProject("portrait-1024x1536", useEditorStore.getState().projectName),
+        action: () => resizeCanvas("portrait-1024x1536"),
       },
       {
         label: "Canvas Size · Landscape",
-        action: () => useEditorStore.getState().resetProject("landscape-1536x1024", useEditorStore.getState().projectName),
+        action: () => resizeCanvas("landscape-1536x1024"),
       },
     ],
     AI: [
