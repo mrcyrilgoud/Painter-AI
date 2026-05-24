@@ -15,9 +15,6 @@ const inflight = new Map<string, AbortController>();
  */
 export async function runOp(messageId: string, request: AIGenerateRequest, confidence: number) {
   const chat = useChatStore.getState();
-  if (request.mode === "inpaint") {
-    useEditorStore.getState().exitSelectionMode();
-  }
   chat.updateOpProposal(messageId, { status: "generating", progress: 0 });
 
   const ctrl = new AbortController();
@@ -53,6 +50,7 @@ export async function runOp(messageId: string, request: AIGenerateRequest, confi
     chat.updateOpProposal(messageId, { status: "dismissed" });
     const msg = err instanceof Error ? err.message : "unknown error";
     chat.appendActionLog(`⚠ Generation failed: ${msg}`);
+    useEditorStore.getState().exitSelectionMode();
   } finally {
     inflight.delete(messageId);
   }
@@ -91,7 +89,7 @@ export function commitVariation(messageId: string, variationIndex: number) {
       return;
     }
     if (!active) return;
-    const { before, after } = pasteInfill(
+    const { before, after, dirtyRect } = pasteInfill(
       active.canvas,
       variation.image,
       commitSelection,
@@ -103,7 +101,12 @@ export function commitVariation(messageId: string, variationIndex: number) {
         l.id === active.id ? { ...l, aiProvenance: provenance } : l,
       ),
     }));
-    editor.commitPixelChange(active.id, before, after);
+    editor.commitPixelChange(active.id, before, after, {
+      x: dirtyRect.x,
+      y: dirtyRect.y,
+      w: dirtyRect.width,
+      h: dirtyRect.height,
+    });
     editor.exitSelectionMode();
     chat.updateOpProposal(messageId, { status: "committed", committedVariationIndex: variationIndex });
     chat.appendActionLog(`✓ Committed variation ${variationIndex + 1} → infill on "${active.name}"`);

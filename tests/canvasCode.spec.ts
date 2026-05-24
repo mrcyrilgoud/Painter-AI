@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   createCanvas,
   runDrawCode,
+  runDrawCodeInWorker,
   extractCode,
 } from "../server/src/imageApi/canvasCodeRenderer";
 
@@ -48,6 +49,31 @@ describe("canvasCodeRenderer", () => {
       const ctx = canvas.getContext("2d");
       const code = `function draw(ctx, w, h) { ctx.nonexistentMethod(); }`;
       expect(() => runDrawCode(code, ctx, 8, 8)).toThrow(/first line:.*function draw/);
+    });
+  });
+
+  describe("runDrawCodeInWorker", () => {
+    it("executes a valid draw function off the main thread", async () => {
+      const code = `function draw(ctx, w, h) { ctx.fillStyle = '#00ff00'; ctx.fillRect(0, 0, w, h); }`;
+      const pixels = await runDrawCodeInWorker(code, 8, 8);
+      expect(pixels[0]).toBe(0);
+      expect(pixels[1]).toBe(255);
+      expect(pixels[2]).toBe(0);
+    });
+
+    it("aborts an infinite loop within the timeout", async () => {
+      const code = `function draw(ctx, w, h) { while (true) {} }`;
+      const t0 = Date.now();
+      await expect(runDrawCodeInWorker(code, 8, 8)).rejects.toThrow(/draw\(\) execution failed|timed out/);
+      expect(Date.now() - t0).toBeLessThan(7_000);
+    }, 10_000);
+
+    it("honours abort signal", async () => {
+      const code = `function draw(ctx, w, h) { while (true) {} }`;
+      const ctrl = new AbortController();
+      const p = runDrawCodeInWorker(code, 8, 8, ctrl.signal);
+      ctrl.abort();
+      await expect(p).rejects.toThrow(/aborted/);
     });
   });
 });

@@ -26,7 +26,7 @@ function makeCtx(canvas: HTMLCanvasElement, color = "#ff0000"): ToolContext {
     layer: { canvas } as ToolContext["layer"],
     ctx: canvas.getContext("2d")!,
     overlay: {} as CanvasRenderingContext2D,
-    state: { primaryColor: color } as ToolContext["state"],
+    state: { primaryColor: color, exitSelectionMode: () => {} } as ToolContext["state"],
     dimensions: { width: canvas.width, height: canvas.height },
     setStatus: () => {},
     commitStroke: () => {},

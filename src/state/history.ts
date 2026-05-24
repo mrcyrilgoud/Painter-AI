@@ -3,6 +3,8 @@ export interface PixelSnapshot {
   layerId: string;
   before: ImageData;
   after: ImageData;
+  /** When set, snapshots are subrects — restore at this offset. */
+  rect?: { x: number; y: number; w: number; h: number };
 }
 
 export interface StructuralSnapshot {

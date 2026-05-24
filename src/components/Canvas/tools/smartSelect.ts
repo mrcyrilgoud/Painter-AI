@@ -8,7 +8,10 @@ export const smartSelectTool: ToolHandler = {
   id: "smart-select",
   cursor: "crosshair",
   onDown(ctx, p) {
-    if (busy) return;
+    if (busy) {
+      ctx.setStatus("Smart Select · still processing, please wait…");
+      return;
+    }
     busy = true;
     ctx.setStatus("Smart Select · segmenting…");
     void (async () => {
@@ -19,7 +22,9 @@ export const smartSelectTool: ToolHandler = {
           hint: { kind: "point", x: Math.round(p.x), y: Math.round(p.y) },
         });
         if (result.warning === "empty_mask" || result.warning === "no_color_match") {
-          ctx.setStatus("Smart Select · no matching region — try a different point");
+          ctx.setStatus(
+            result.hint ?? "Smart Select · no matching region — try a different point",
+          );
           ctx.setSelection(null);
           return;
         }

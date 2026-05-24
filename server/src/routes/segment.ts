@@ -16,7 +16,7 @@ function encodeMask(width: number, height: number, mask: Uint8Array): string {
   return PNG.sync.write(png).toString("base64");
 }
 
-function floodMask(src: { width: number; height: number; data: Buffer }, x: number, y: number, tolerance: number): Uint8Array {
+export function floodMask(src: { width: number; height: number; data: Buffer }, x: number, y: number, tolerance: number): Uint8Array {
   const { width, height, data } = src;
   const mask = new Uint8Array(width * height);
   const sx = Math.max(0, Math.min(width - 1, Math.round(x)));
@@ -25,18 +25,27 @@ function floodMask(src: { width: number; height: number; data: Buffer }, x: numb
   const sr = data[i0],
     sg = data[i0 + 1],
     sb = data[i0 + 2];
+  mask[sy * width + sx] = 1;
   const stack: number[] = [sx, sy];
+
+  function tryPush(px: number, py: number) {
+    if (px < 0 || px >= width || py < 0 || py >= height) return;
+    const idx = py * width + px;
+    if (mask[idx]) return;
+    const di = idx * 4;
+    const d = Math.abs(data[di] - sr) + Math.abs(data[di + 1] - sg) + Math.abs(data[di + 2] - sb);
+    if (d > tolerance * 3) return;
+    mask[idx] = 1;
+    stack.push(px, py);
+  }
+
   while (stack.length > 0) {
     const py = stack.pop()!;
     const px = stack.pop()!;
-    if (px < 0 || px >= width || py < 0 || py >= height) continue;
-    const idx = py * width + px;
-    if (mask[idx]) continue;
-    const di = idx * 4;
-    const d = Math.abs(data[di] - sr) + Math.abs(data[di + 1] - sg) + Math.abs(data[di + 2] - sb);
-    if (d > tolerance * 3) continue;
-    mask[idx] = 1;
-    stack.push(px + 1, py, px - 1, py, px, py + 1, px, py - 1);
+    tryPush(px + 1, py);
+    tryPush(px - 1, py);
+    tryPush(px, py + 1);
+    tryPush(px, py - 1);
   }
   return mask;
 }
@@ -51,22 +60,35 @@ function rectMask(width: number, height: number, x: number, y: number, w: number
   return mask;
 }
 
+const COLOR_MAP: Array<{ keywords: string[]; rgb: [number, number, number] }> = [
+  { keywords: ["red", "fire", "brick"], rgb: [200, 60, 60] },
+  { keywords: ["blue", "sky", "water", "ocean"], rgb: [120, 170, 220] },
+  { keywords: ["green", "tree", "grass", "forest"], rgb: [80, 160, 90] },
+  { keywords: ["yellow", "sun", "gold"], rgb: [240, 220, 80] },
+  { keywords: ["white", "cloud", "snow"], rgb: [240, 240, 240] },
+  { keywords: ["black", "shadow", "dark"], rgb: [30, 30, 30] },
+  { keywords: ["brown", "wood", "cottage", "house", "earth"], rgb: [170, 110, 70] },
+  { keywords: ["orange", "autumn", "rust"], rgb: [230, 120, 40] },
+  { keywords: ["purple", "violet", "lavender"], rgb: [140, 80, 180] },
+  { keywords: ["pink", "rose", "blossom"], rgb: [230, 150, 160] },
+  { keywords: ["gray", "grey", "stone", "rock"], rgb: [150, 150, 150] },
+];
+
 function colorWordMask(
   src: { width: number; height: number; data: Buffer },
   prompt: string,
-): { mask: Uint8Array; matchedKnownColor: boolean } {
+): { mask: Uint8Array; matchedKnownColor: boolean; hint?: string } {
   const targets: Array<[number, number, number]> = [];
   const p = prompt.toLowerCase();
-  if (p.includes("red")) targets.push([200, 60, 60]);
-  if (p.includes("blue") || p.includes("sky") || p.includes("water")) targets.push([120, 170, 220]);
-  if (p.includes("green") || p.includes("tree") || p.includes("grass")) targets.push([80, 160, 90]);
-  if (p.includes("yellow") || p.includes("sun")) targets.push([240, 220, 80]);
-  if (p.includes("white") || p.includes("cloud")) targets.push([240, 240, 240]);
-  if (p.includes("brown") || p.includes("wood") || p.includes("cottage") || p.includes("house"))
-    targets.push([170, 110, 70]);
+  for (const entry of COLOR_MAP) {
+    if (entry.keywords.some((kw) => p.includes(kw))) targets.push(entry.rgb);
+  }
   const { width, height, data } = src;
   const mask = new Uint8Array(width * height);
-  if (targets.length === 0) return { mask, matchedKnownColor: false };
+  if (targets.length === 0) {
+    const supported = COLOR_MAP.flatMap((e) => e.keywords.slice(0, 1)).join(", ");
+    return { mask, matchedKnownColor: false, hint: `Supported color words: ${supported}` };
+  }
   const TOL = 70;
   for (let i = 0, j = 0; i < mask.length; i++, j += 4) {
     for (const t of targets) {
@@ -113,6 +135,7 @@ export async function segmentRoute(c: Context) {
     const src = decodeBase64Png(body.sourcePngBase64);
     let mask: Uint8Array;
     let warning: "no_color_match" | "empty_mask" | undefined;
+    let responseHint: string | undefined;
     switch (body.hint.kind) {
       case "point":
         mask = floodMask(src, body.hint.x, body.hint.y, body.hint.tolerance ?? 24);
@@ -124,15 +147,22 @@ export async function segmentRoute(c: Context) {
       case "text": {
         const result = colorWordMask(src, body.hint.prompt);
         mask = result.mask;
-        if (!result.matchedKnownColor) warning = "no_color_match";
-        else if (isAllZero(mask)) warning = "empty_mask";
+        if (!result.matchedKnownColor) {
+          warning = "no_color_match";
+          responseHint = result.hint;
+        } else if (isAllZero(mask)) warning = "empty_mask";
         break;
+      }
+      default: {
+        const _exhaustive: never = body.hint;
+        throw new Error(`Unhandled segment hint kind: ${String(_exhaustive)}`);
       }
     }
     logInfo(reqId, "/ai/segment", "ok", { ms: Date.now() - t0, warning });
     return c.json({
       maskPngBase64: encodeMask(src.width, src.height, mask),
       ...(warning ? { warning } : {}),
+      ...(responseHint ? { hint: responseHint } : {}),
     });
   } catch (e) {
     logError(reqId, "/ai/segment", `failed after ${Date.now() - t0}ms`, e);

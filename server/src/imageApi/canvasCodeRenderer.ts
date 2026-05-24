@@ -1,4 +1,7 @@
 import vm from "node:vm";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
 import { createCanvas, createImageData, loadImage } from "canvas";
 import type { Canvas, CanvasRenderingContext2D } from "canvas";
 import type {
@@ -16,7 +19,19 @@ import { logInfo } from "../log.js";
 export { createCanvas };
 
 /** Hard wall-clock for executing a Codex-written draw() function. */
-const DRAW_EXEC_TIMEOUT_MS = 5_000;
+export const DRAW_EXEC_TIMEOUT_MS = 5_000;
+
+function drawWorkerPath(): string {
+  try {
+    const url = new URL("./drawCodeWorker.js", import.meta.url);
+    if (url.protocol === "file:") {
+      return fileURLToPath(url);
+    }
+  } catch {
+    // Vitest may provide a non-file import.meta.url — fall back below.
+  }
+  return path.join(process.cwd(), "server/src/imageApi/drawCodeWorker.js");
+}
 
 export const DRAW_SYSTEM = `You are a canvas artist. Write a JavaScript function that renders the requested scene onto an HTML5 Canvas 2D context.
 
@@ -96,6 +111,59 @@ export function runDrawCode(
   }
 }
 
+/** Run draw() in a worker thread so VM execution cannot block the event loop. */
+export async function runDrawCodeInWorker(
+  code: string,
+  width: number,
+  height: number,
+  signal?: AbortSignal,
+): Promise<Uint8ClampedArray> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(drawWorkerPath(), {
+      workerData: { code, width, height },
+    });
+    let settled = false;
+
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onAbort);
+      fn();
+    };
+
+    const timeout = setTimeout(() => {
+      worker.terminate();
+      finish(() => reject(new Error("draw() timed out")));
+    }, DRAW_EXEC_TIMEOUT_MS + 500);
+
+    const onAbort = () => {
+      worker.terminate();
+      finish(() => reject(new Error("aborted")));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    worker.on("message", (msg: { pixels: Uint8ClampedArray } | { error: string }) => {
+      finish(() => {
+        if ("error" in msg) {
+          const firstLine = code.split("\n")[0]?.slice(0, 120) ?? "";
+          reject(new Error(`draw() execution failed (${msg.error}); first line: ${firstLine}`));
+          return;
+        }
+        resolve(msg.pixels);
+      });
+    });
+    worker.on("error", (err) => {
+      finish(() => reject(err));
+    });
+    worker.on("exit", (exitCode) => {
+      if (exitCode !== 0) {
+        finish(() => reject(new Error(`draw() worker exited with code ${exitCode}`)));
+      }
+    });
+  });
+}
+
 export function extractCode(raw: string): string {
   const fenced = raw.match(/```(?:javascript|js)?\s*([\s\S]*?)```/);
   if (fenced) return fenced[1].trim();
@@ -117,24 +185,22 @@ async function renderBase(
   style: string,
   width: number,
   height: number,
+  baseSeed: number,
   options?: ImageProviderGenerateOptions,
 ): Promise<{ pixels: Uint8ClampedArray; width: number; height: number; modelMs: number; drawMs: number }> {
   const styleHint = style && style !== "none" ? ` Style: ${style}.` : "";
   const modelStart = Date.now();
   const raw = await generateText(
-    `Scene: "${prompt}"${styleHint}\nCanvas: ${width}×${height}px`,
+    `Scene: "${prompt}"${styleHint}\nCanvas: ${width}×${height}px\nSeed: ${baseSeed}`,
     DRAW_SYSTEM,
     options,
   );
   const modelMs = Date.now() - modelStart;
   const code = extractCode(raw);
-  const canvas = createCanvas(width, height);
-  const ctx: CanvasRenderingContext2D = canvas.getContext("2d");
   const drawStart = Date.now();
-  runDrawCode(code, ctx, width, height);
+  const pixels = await runDrawCodeInWorker(code, width, height, options?.signal);
   const drawMs = Date.now() - drawStart;
-  const imageData = ctx.getImageData(0, 0, width, height);
-  return { pixels: imageData.data, width, height, modelMs, drawMs };
+  return { pixels, width, height, modelMs, drawMs };
 }
 
 /**
@@ -149,6 +215,7 @@ async function renderInpaint(
   fullHeight: number,
   bounds: { x: number; y: number; w: number; h: number },
   description: ContextDescription,
+  variationSeed: number,
   options?: ImageProviderGenerateOptions,
 ): Promise<{ pixels: Uint8ClampedArray; width: number; height: number; modelMs: number; drawMs: number }> {
   const styleHint = style && style !== "none" ? ` Style: ${style}.` : "";
@@ -157,6 +224,7 @@ async function renderInpaint(
     : "";
   const userPrompt =
     `Fill request: "${prompt}"${styleHint}${edgeSeedNote}\n` +
+    `Seed: ${variationSeed}\n` +
     `Fill window: ${bounds.w}×${bounds.h}px (positioned at (${bounds.x},${bounds.y}) inside a ${fullWidth}×${fullHeight} image)\n` +
     `Surrounding context:\n${description.text}`;
   const modelStart = Date.now();
@@ -164,14 +232,11 @@ async function renderInpaint(
   const modelMs = Date.now() - modelStart;
   const code = extractCode(raw);
 
-  const regionCanvas = createCanvas(bounds.w, bounds.h);
-  const regionCtx: CanvasRenderingContext2D = regionCanvas.getContext("2d");
   const drawStart = Date.now();
-  runDrawCode(code, regionCtx, bounds.w, bounds.h);
+  const pixels = await runDrawCodeInWorker(code, bounds.w, bounds.h, options?.signal);
   const drawMs = Date.now() - drawStart;
 
-  const imageData = regionCtx.getImageData(0, 0, bounds.w, bounds.h);
-  return { pixels: imageData.data, width: bounds.w, height: bounds.h, modelMs, drawMs };
+  return { pixels, width: bounds.w, height: bounds.h, modelMs, drawMs };
 }
 
 /**
@@ -301,7 +366,7 @@ export function makeCanvasProvider(
         }
 
         if (!bounds || bounds.w < 1 || bounds.h < 1) {
-          const rendered = await renderBase(generateText, prompt, style, width, height, generateOptions);
+          const rendered = await renderBase(generateText, prompt, style, width, height, baseSeed, generateOptions);
           base = rendered;
           modelMs = rendered.modelMs;
           drawMs = rendered.drawMs;
@@ -323,6 +388,7 @@ export function makeCanvasProvider(
             height,
             bounds,
             description,
+            baseSeed,
             generateOptions,
           );
           base = rendered;
@@ -330,7 +396,7 @@ export function makeCanvasProvider(
           drawMs = rendered.drawMs;
         }
       } else {
-        const rendered = await renderBase(generateText, prompt, style, width, height, generateOptions);
+        const rendered = await renderBase(generateText, prompt, style, width, height, baseSeed, generateOptions);
         base = rendered;
         modelMs = rendered.modelMs;
         drawMs = rendered.drawMs;

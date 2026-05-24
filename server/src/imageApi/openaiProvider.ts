@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { createCanvas, loadImage } from "canvas";
 import type {
   ImageGenRequest,
   ImageGenResult,
@@ -39,6 +40,7 @@ async function callGenerate(
     n: Math.min(req.variations, 4),
     size,
     output_format: "png",
+    ...(req.seed !== undefined ? { seed: req.seed } : {}),
   };
   const apiStart = Date.now();
   const res = await fetch("https://api.openai.com/v1/images/generations", {
@@ -82,6 +84,7 @@ async function callEdits(
   form.append("prompt", req.prompt);
   form.append("n", String(Math.min(req.variations, 4)));
   form.append("size", size);
+  if (req.seed !== undefined) form.append("seed", String(req.seed));
   const apiStart = Date.now();
   const res = await fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
@@ -110,6 +113,26 @@ async function callEdits(
   return j.data.map((d) => d.b64_json);
 }
 
+async function cropToBounds(
+  b64: string,
+  bounds: { x: number; y: number; w: number; h: number },
+): Promise<string> {
+  const img = await loadImage(Buffer.from(stripBase64DataUrl(b64), "base64"));
+  const c = createCanvas(bounds.w, bounds.h);
+  c.getContext("2d").drawImage(
+    img,
+    bounds.x,
+    bounds.y,
+    bounds.w,
+    bounds.h,
+    0,
+    0,
+    bounds.w,
+    bounds.h,
+  );
+  return c.toBuffer("image/png").toString("base64");
+}
+
 export const openaiProvider: ImageProvider = {
   name: "openai-gpt-image-1",
   isReady() {
@@ -123,10 +146,22 @@ export const openaiProvider: ImageProvider = {
     options?: ImageProviderGenerateOptions,
   ): Promise<ImageGenResult> {
     const isInpaint = req.mode === "inpaint" && !!req.maskPngBase64;
-    const variationsBase64 = isInpaint
+    let variationsBase64 = isInpaint
       ? await callEdits(req, options)
       : await callGenerate(req, options);
     const seeds = variationsBase64.map((_, i) => (req.seed ?? Date.now()) + i);
+
+    if (isInpaint && req.maskBoundsPx) {
+      variationsBase64 = await Promise.all(
+        variationsBase64.map((b64) => cropToBounds(b64, req.maskBoundsPx!)),
+      );
+      return {
+        variationsBase64,
+        seeds,
+        outputKind: "inpaint-region",
+        boundsPx: req.maskBoundsPx,
+      };
+    }
     return { variationsBase64, seeds, outputKind: "full-canvas" };
   },
 };

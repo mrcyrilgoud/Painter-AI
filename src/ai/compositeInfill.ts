@@ -23,7 +23,7 @@ function boundedRect(
  * Copy a subrect from a full-image ImageData into a new ImageData without an
  * extra getImageData call. Avoids a second GPU→CPU round-trip.
  */
-function sliceImageData(
+export function sliceImageData(
   full: ImageData,
   imgW: number,
   rect: { x: number; y: number; w: number; h: number },
@@ -132,10 +132,8 @@ export function applyEdgeRing(
  * Otherwise `variation` is treated as full-canvas (drawn from `(0,0)`).
  *
  * Intermediate canvases are sized to a bounded rect around the selection
- * (expanded by `featherPx + seamWidth`), not the full image — eliminates
- * tens of megabytes of allocations per infill on large canvases. The
- * returned before/after still cover the full target so the existing undo
- * history shape is preserved.
+ * (expanded by `featherPx + seamWidth`), not the full image. Undo snapshots
+ * cover only the dirty rect; history stores the offset for partial restore.
  */
 export function pasteInfill(
   target: HTMLCanvasElement,
@@ -143,22 +141,17 @@ export function pasteInfill(
   selection: Selection,
   featherPx: number,
   variationOffset?: { x: number; y: number },
-): { before: ImageData; after: ImageData } {
+): { before: ImageData; after: ImageData; dirtyRect: DOMRect } {
   const tctx = target.getContext("2d")!;
   const seamWidth = Math.max(1, Math.ceil(featherPx / 2));
   const pad = Math.max(0, featherPx) + seamWidth + 2;
   const rect = boundedRect(selection, target, pad);
 
-  const before = tctx.getImageData(0, 0, target.width, target.height);
-  // Slice the bounded region directly from the full snapshot rather than
-  // issuing a second getImageData call.
-  const beforeBounded = sliceImageData(before, target.width, rect);
+  const before = tctx.getImageData(rect.x, rect.y, rect.w, rect.h);
 
   const mask = buildFeatherMask(selection, rect, featherPx);
 
   const vOff = variationOffset ?? { x: 0, y: 0 };
-  // Bounded "variation through mask" canvas: variation pixels (drawn at the
-  // bounded offset) masked by the feathered alpha via source-in.
   const masked = document.createElement("canvas");
   masked.width = rect.w;
   masked.height = rect.h;
@@ -168,8 +161,6 @@ export function pasteInfill(
   mctx.drawImage(variation, vOff.x - rect.x, vOff.y - rect.y);
   mctx.globalCompositeOperation = "source-over";
 
-  // Punch a soft hole in target through the same mask (at bounded offset),
-  // then paste the masked variation on top.
   tctx.save();
   tctx.globalCompositeOperation = "destination-out";
   tctx.drawImage(mask, rect.x, rect.y);
@@ -177,8 +168,8 @@ export function pasteInfill(
   tctx.drawImage(masked, rect.x, rect.y);
   tctx.restore();
 
-  applyEdgeRing(target, beforeBounded, selection, rect, seamWidth);
+  applyEdgeRing(target, before, selection, rect, seamWidth);
 
-  const after = tctx.getImageData(0, 0, target.width, target.height);
-  return { before, after };
+  const after = tctx.getImageData(rect.x, rect.y, rect.w, rect.h);
+  return { before, after, dirtyRect: new DOMRect(rect.x, rect.y, rect.w, rect.h) };
 }

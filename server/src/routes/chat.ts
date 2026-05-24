@@ -96,17 +96,18 @@ export async function chatRoute(c: Context) {
   logInfo(reqId, "/ai/chat", "start", { messageLen: body.message.length });
 
   return streamSSE(c, async (stream) => {
+    const signal = c.req.raw.signal;
     try {
       const rawReply = await runCodexCollectText({
         prompt: userPrompt,
         systemPrompt: CHAT_SYSTEM,
+        signal,
       });
       const reply = parseReply(rawReply);
 
       if (reply.text) {
         for (const chunk of chunkText(reply.text)) {
           await stream.writeSSE({ data: JSON.stringify({ kind: "text", text: chunk }) });
-          await new Promise((r) => setTimeout(r, 25));
         }
       }
       if (reply.op) {

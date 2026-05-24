@@ -121,7 +121,12 @@ export interface EditorState {
   setZoom: (zoom: number) => void;
 
   // History
-  commitPixelChange: (layerId: string, before: ImageData, after: ImageData) => void;
+  commitPixelChange: (
+    layerId: string,
+    before: ImageData,
+    after: ImageData,
+    rect?: { x: number; y: number; w: number; h: number },
+  ) => void;
   undo: () => void;
   redo: () => void;
 
@@ -220,8 +225,8 @@ const createStore = () => create<EditorState>((set, get) => ({
   zoom: 1,
   setZoom: (zoom) => set({ zoom }),
 
-  commitPixelChange: (layerId, before, after) => {
-    const entry: HistoryEntry = { kind: "pixels", layerId, before, after };
+  commitPixelChange: (layerId, before, after, rect) => {
+    const entry: HistoryEntry = { kind: "pixels", layerId, before, after, rect };
     history.push(entry);
     get().bumpRender();
   },
@@ -250,6 +255,7 @@ function applyEntry(get: () => EditorState, entry: HistoryEntry, direction: "bef
   if (entry.kind === "pixels") {
     const layer = get().layers.find((l) => l.id === entry.layerId);
     if (!layer) return;
-    restore(layer.canvas, direction === "before" ? entry.before : entry.after);
+    const snap = direction === "before" ? entry.before : entry.after;
+    restore(layer.canvas, snap, entry.rect);
   }
 }

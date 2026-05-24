@@ -71,4 +71,11 @@ describe("HistoryStack", () => {
     expect(popped[0]).toBe("l59");
     expect(popped[49]).toBe("l10");
   });
+
+  it("stores rect on pixel history entries when provided", () => {
+    const h = new HistoryStack();
+    const e = { ...entry("a"), rect: { x: 10, y: 20, w: 30, h: 40 } };
+    h.push(e);
+    expect(h.undo()).toEqual(e);
+  });
 });

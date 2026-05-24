@@ -8,6 +8,7 @@ vi.mock("../src/ai/compositeInfill", () => ({
   pasteInfill: vi.fn(() => ({
     before: new ImageData(1, 1),
     after: new ImageData(1, 1),
+    dirtyRect: new DOMRect(0, 0, 1, 1),
   })),
 }));
 

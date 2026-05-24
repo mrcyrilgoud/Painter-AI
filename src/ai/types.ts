@@ -73,6 +73,7 @@ export interface SegmentResult {
    *  (e.g. a text hint matched no known colours). The caller should surface
    *  this to the user instead of silently selecting nothing. */
   warning?: "no_color_match" | "empty_mask";
+  hint?: string;
 }
 
 export interface Segmenter {

@@ -5,9 +5,17 @@ export function newLayerCanvas(width: number, height: number): HTMLCanvasElement
   return c;
 }
 
-/** Apply an ImageData snapshot to a canvas, resizing if dimensions changed. */
-export function restore(canvas: HTMLCanvasElement, data: ImageData) {
+/** Apply an ImageData snapshot to a canvas, optionally at a subrect offset. */
+export function restore(
+  canvas: HTMLCanvasElement,
+  data: ImageData,
+  rect?: { x: number; y: number },
+) {
   const ctx = canvas.getContext("2d")!;
+  if (rect) {
+    ctx.putImageData(data, rect.x, rect.y);
+    return;
+  }
   if (data.width !== canvas.width || data.height !== canvas.height) {
     const tmp = document.createElement("canvas");
     tmp.width = data.width;

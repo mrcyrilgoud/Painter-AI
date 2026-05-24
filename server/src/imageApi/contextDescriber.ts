@@ -1,5 +1,4 @@
-import { createCanvas, loadImage } from "canvas";
-import type { Image } from "canvas";
+import { createCanvas, createImageData, loadImage } from "canvas";
 import { stripBase64DataUrl } from "./pngUtils.js";
 
 /**
@@ -53,16 +52,31 @@ function clampRect(r: Rect, imgW: number, imgH: number): Rect {
   return { x, y, w, h };
 }
 
-/**
- * Copy `rect` from the source image into a freshly-allocated RGBA buffer sized
- * to `rect`. One drawImage + one getImageData — no full-image scratch buffer.
- */
-function extractRect(img: Image, rect: Rect): Uint8ClampedArray {
+async function loadImageData(
+  sourcePngBase64: string,
+  width: number,
+  height: number,
+): Promise<Uint8ClampedArray> {
+  const buf = Buffer.from(stripBase64DataUrl(sourcePngBase64), "base64");
+  const fullCanvas = createCanvas(width, height);
+  const ctx = fullCanvas.getContext("2d");
+  const img = await loadImage(buf);
+  ctx.drawImage(img, 0, 0, width, height);
+  return ctx.getImageData(0, 0, width, height).data as unknown as Uint8ClampedArray;
+}
+
+function sliceRect(data: Uint8ClampedArray, imgW: number, rect: Rect): Uint8ClampedArray {
   if (rect.w <= 0 || rect.h <= 0) return new Uint8ClampedArray(0);
-  const c = createCanvas(rect.w, rect.h);
-  const cx = c.getContext("2d");
-  cx.drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
-  return cx.getImageData(0, 0, rect.w, rect.h).data as unknown as Uint8ClampedArray;
+  const out = new Uint8ClampedArray(rect.w * rect.h * 4);
+  for (let row = 0; row < rect.h; row++) {
+    const srcOff = ((rect.y + row) * imgW + rect.x) * 4;
+    out.set(data.subarray(srcOff, srcOff + rect.w * 4), row * rect.w * 4);
+  }
+  return out;
+}
+
+function createImageDataFromBuffer(data: Uint8ClampedArray, width: number, height: number) {
+  return createImageData(new Uint8ClampedArray(data), width, height);
 }
 
 interface PaletteHist {
@@ -125,7 +139,7 @@ function bandsFor(
  * thin strip via drawImage — no full-image buffer required.
  */
 function sampleEdgeRows(
-  img: Image,
+  imageData: Uint8ClampedArray,
   imgW: number,
   imgH: number,
   bounds: Rect,
@@ -141,7 +155,7 @@ function sampleEdgeRows(
     const rx = Math.max(0, bounds.x);
     const rw = Math.min(imgW - rx, bounds.w);
     if (rw <= 0) return null;
-    const strip = extractRect(img, { x: rx, y: yMin, w: rw, h: yMax - yMin });
+    const strip = sliceRect(imageData, imgW, { x: rx, y: yMin, w: rw, h: yMax - yMin });
     return { strip, w: rw };
   };
 
@@ -152,7 +166,7 @@ function sampleEdgeRows(
     const cy = Math.max(0, bounds.y);
     const ch = Math.min(imgH - cy, bounds.h);
     if (ch <= 0) return null;
-    const strip = extractRect(img, { x: xMin, y: cy, w: xMax - xMin, h: ch });
+    const strip = sliceRect(imageData, imgW, { x: xMin, y: cy, w: xMax - xMin, h: ch });
     return { strip, h: ch };
   };
 
@@ -243,12 +257,8 @@ function formatEdgeRows(edgeRows: ContextDescription["edgeRows"]): string {
 }
 
 /**
- * Decode a base64 PNG and return a contextual description of the area
- * surrounding `bounds` (the masked region). Used by canvas-code providers.
- *
- * Reads only the rects it needs — each band, each edge strip, and a tiny 4×4
- * downscale for the global grid — so cost scales with mask size, not source
- * size.
+ * Decode a base64 PNG once, then sample bands and edge strips from a shared
+ * pixel buffer. Used by canvas-code providers.
  */
 export async function describeContext(
   sourcePngBase64: string,
@@ -256,17 +266,16 @@ export async function describeContext(
   width: number,
   height: number,
 ): Promise<ContextDescription> {
-  const buf = Buffer.from(stripBase64DataUrl(sourcePngBase64), "base64");
-  const img = await loadImage(buf);
+  const imageData = await loadImageData(sourcePngBase64, width, height);
 
-  // Boundary palette + edge colors — read each band as its own small rect.
+  // Boundary palette + edge colors — read each band from the shared buffer.
   const bands = bandsFor(bounds, width, height);
   const edgeColors = { top: "#000000", right: "#000000", bottom: "#000000", left: "#000000" };
   const palAccum: PaletteHist = { hist: new Map(), total: 0 };
   for (const [side, rect] of Object.entries(bands) as Array<[keyof typeof bands, Rect]>) {
     const r = clampRect(rect, width, height);
     if (r.w <= 0 || r.h <= 0) continue;
-    const data = extractRect(img, r);
+    const data = sliceRect(imageData, width, r);
     const avg = avgColorFromBuffer(data);
     edgeColors[side] = rgbToHex(avg.r, avg.g, avg.b);
     accumulatePaletteFromBuffer(data, palAccum);
@@ -274,13 +283,18 @@ export async function describeContext(
   const palette = topPalette(palAccum, PALETTE_BUCKETS);
 
   // Per-side edge rows (actual pixel colors at boundary).
-  const edgeRows = sampleEdgeRows(img, width, height, bounds);
+  const edgeRows = sampleEdgeRows(imageData, width, height, bounds);
 
-  // Global thumbnail grid — let the canvas implementation average pixels for us
-  // by drawing the source onto a GRID×GRID canvas. Reads GRID² pixels total.
+  // Global thumbnail grid — one downscale from the decoded buffer.
   const gridCanvas = createCanvas(THUMBNAIL_GRID, THUMBNAIL_GRID);
   const gridCtx = gridCanvas.getContext("2d");
-  gridCtx.drawImage(img, 0, 0, width, height, 0, 0, THUMBNAIL_GRID, THUMBNAIL_GRID);
+  const fullCanvas = createCanvas(width, height);
+  fullCanvas.getContext("2d")!.putImageData(
+    createImageDataFromBuffer(imageData, width, height),
+    0,
+    0,
+  );
+  gridCtx.drawImage(fullCanvas, 0, 0, width, height, 0, 0, THUMBNAIL_GRID, THUMBNAIL_GRID);
   const gridData = gridCtx.getImageData(0, 0, THUMBNAIL_GRID, THUMBNAIL_GRID).data;
   const grid: string[][] = [];
   for (let row = 0; row < THUMBNAIL_GRID; row++) {

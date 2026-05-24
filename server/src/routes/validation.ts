@@ -43,8 +43,6 @@ export const generateSchema = z.object({
 });
 
 export const segmentSchema = z.object({
-  width: dimension,
-  height: dimension,
   sourcePngBase64: requiredBase64Image,
   hint: z.discriminatedUnion("kind", [
     z.object({

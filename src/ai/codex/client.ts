@@ -117,7 +117,7 @@ export class CodexClient {
   async segment(
     body: object,
     opts: { signal?: AbortSignal } = {},
-  ): Promise<{ maskPngBase64: string; warning?: "no_color_match" | "empty_mask" }> {
+  ): Promise<{ maskPngBase64: string; warning?: "no_color_match" | "empty_mask"; hint?: string }> {
     const { response, dispose } = await fetchWithTimeout(
       `${BASE}/segment`,
       {
