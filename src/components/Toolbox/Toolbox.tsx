@@ -8,6 +8,7 @@ interface ToolDef {
 }
 
 const TOOLS: ToolDef[] = [
+  { id: "pointer", label: "Pointer", glyph: "↖" },
   { id: "select", label: "Select", glyph: "▱" },
   { id: "smart-select", label: "Smart Select", glyph: "⌖" },
   { id: "pencil", label: "Pencil", glyph: "✎" },
@@ -24,8 +25,12 @@ const TOOLS: ToolDef[] = [
 const SIZES = [2, 4, 8, 16];
 
 export function Toolbox() {
-  const { activeTool, setActiveTool, brushSize, setBrushSize, primaryColor, secondaryColor } =
-    useEditorStore();
+  const activeTool = useEditorStore((s) => s.activeTool);
+  const setActiveTool = useEditorStore((s) => s.setActiveTool);
+  const brushSize = useEditorStore((s) => s.brushSize);
+  const setBrushSize = useEditorStore((s) => s.setBrushSize);
+  const primaryColor = useEditorStore((s) => s.primaryColor);
+  const secondaryColor = useEditorStore((s) => s.secondaryColor);
 
   return (
     <aside className={styles.toolbox}>
@@ -36,7 +41,11 @@ export function Toolbox() {
             className={`${styles.tool} ${activeTool === t.id ? styles.active : ""} ${
               t.id === "ai" ? styles.aiTool : ""
             }`}
-            onClick={() => setActiveTool(t.id)}
+            onClick={() =>
+              t.id === "pointer"
+                ? useEditorStore.getState().exitSelectionMode()
+                : setActiveTool(t.id)
+            }
             title={t.label}
             aria-label={t.label}
           >

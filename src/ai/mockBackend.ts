@@ -26,31 +26,17 @@ async function generateVariation(
   const style = getStyle(req.style);
   const palette = style.palette.slice();
 
-  // Mix in reference colors as bias if requested
-  if (req.references?.length) {
-    for (const r of req.references) {
-      if (r.role !== "color" && r.role !== "style") continue;
-      const refCanvas = await bitmapToCanvas(r.image);
-      const ctx = refCanvas.getContext("2d")!;
-      const data = ctx.getImageData(0, 0, refCanvas.width, refCanvas.height).data;
-      for (let i = 0; i < 4; i++) {
-        const idx = Math.floor(rand() * (data.length / 4)) * 4;
-        const hex =
-          "#" +
-          [data[idx], data[idx + 1], data[idx + 2]]
-            .map((v) => v.toString(16).padStart(2, "0"))
-            .join("");
-        if (rand() < r.weight) palette.push(hex);
-      }
-    }
-  }
-
   const canvas = document.createElement("canvas");
   canvas.width = dimensions.width;
   canvas.height = dimensions.height;
   const ctx = canvas.getContext("2d")!;
-  // Always start from current canvas state
-  ctx.drawImage(source, 0, 0);
+  // For inpaint, leave the canvas transparent outside the mask so the
+  // client-side feathered compositor can blend cleanly. Otherwise (newLayer,
+  // restyle, etc.) seed from the current source so the variation is a full
+  // image the caller can drop in as a new layer.
+  if (req.mode !== "inpaint" || !mask) {
+    ctx.drawImage(source, 0, 0);
+  }
 
   // Determine fill region — full canvas, or mask bounds
   let x0 = 0,
@@ -79,10 +65,17 @@ async function generateVariation(
         }
       }
     }
-    x0 = minX;
-    y0 = minY;
-    w = maxX - minX;
-    h = maxY - minY;
+    if (maxX >= minX && maxY >= minY) {
+      x0 = minX;
+      y0 = minY;
+      w = maxX - minX + 1;
+      h = maxY - minY + 1;
+    } else {
+      // Mask is entirely transparent — nothing to fill; leave w/h at full canvas
+      // so the loop runs but every splotch gets masked to alpha 0 below.
+      w = 0;
+      h = 0;
+    }
   }
 
   // Paint style-themed splotches in the fill region; clip to mask if present
@@ -133,11 +126,10 @@ async function generateVariation(
 }
 
 export const mockBackend: AIBackend = {
-  async generate(req, onProgress) {
+  async generate(req, onProgress, signal?: AbortSignal) {
     const count = Math.max(1, Math.min(req.variations, 8));
     const baseSeed = req.seed ?? Math.floor(Math.random() * 1_000_000);
     const variations: AIVariation[] = [];
-    // Fake progress
     let p = 0;
     const tick = () => {
       p = Math.min(95, p + 8 + Math.random() * 6);
@@ -145,14 +137,14 @@ export const mockBackend: AIBackend = {
     };
     const iv = setInterval(tick, 80);
     try {
-      // Generate sequentially so progress reads smoothly
       for (let i = 0; i < count; i++) {
+        signal?.throwIfAborted();
         variations.push(await generateVariation(req, baseSeed + i * 7919));
         await new Promise((r) => setTimeout(r, 60));
       }
     } finally {
       clearInterval(iv);
-      onProgress(100);
+      if (!signal?.aborted) onProgress(100);
     }
     return { variations };
   },

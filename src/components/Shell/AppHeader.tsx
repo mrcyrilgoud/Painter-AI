@@ -3,7 +3,9 @@ import { MenuBar } from "./MenuBar";
 import styles from "./AppHeader.module.css";
 
 export function AppHeader() {
-  const { projectName, theme, toggleTheme } = useEditorStore();
+  const projectName = useEditorStore((s) => s.projectName);
+  const theme = useEditorStore((s) => s.theme);
+  const toggleTheme = useEditorStore((s) => s.toggleTheme);
   return (
     <header className={styles.header}>
       <div className={styles.brand}>

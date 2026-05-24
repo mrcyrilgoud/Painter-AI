@@ -15,7 +15,8 @@ export function PreviewLayer() {
     const ctx = c.getContext("2d")!;
     ctx.clearRect(0, 0, c.width, c.height);
     if (previewBitmap) {
-      ctx.drawImage(previewBitmap, 0, 0);
+      const off = previewBitmap.offset;
+      ctx.drawImage(previewBitmap.image, off?.x ?? 0, off?.y ?? 0);
     }
   }, [previewBitmap, dimensions]);
 

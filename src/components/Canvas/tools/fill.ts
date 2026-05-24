@@ -5,9 +5,12 @@ export const fillTool: ToolHandler = {
   cursor: "crosshair",
   onDown(ctx, p) {
     const before = ctx.ctx.getImageData(0, 0, ctx.layer.canvas.width, ctx.layer.canvas.height);
-    floodFill(ctx.layer.canvas, Math.round(p.x), Math.round(p.y), ctx.state.primaryColor);
-    ctx.commitStroke(before);
-    ctx.bumpRender();
+    const changed = floodFill(ctx.layer.canvas, Math.round(p.x), Math.round(p.y), ctx.state.primaryColor);
+    if (changed) {
+      ctx.commitStroke(before);
+      ctx.bumpRender();
+    }
+    ctx.state.exitSelectionMode();
   },
   onMove() {},
   onUp() {},
@@ -21,7 +24,7 @@ function hexToRgba(hex: string): [number, number, number, number] {
   return [r, g, b, 255];
 }
 
-function floodFill(canvas: HTMLCanvasElement, x: number, y: number, fillColor: string) {
+function floodFill(canvas: HTMLCanvasElement, x: number, y: number, fillColor: string): boolean {
   const ctx = canvas.getContext("2d")!;
   const { width, height } = canvas;
   // Clamp to valid pixel coords — Math.round on a click at the exact right/bottom
@@ -38,7 +41,7 @@ function floodFill(canvas: HTMLCanvasElement, x: number, y: number, fillColor: s
   const sb = data[startIdx + 2];
   const sa = data[startIdx + 3];
   const [tr, tg, tb, ta] = hexToRgba(fillColor);
-  if (sr === tr && sg === tg && sb === tb && sa === ta) return;
+  if (sr === tr && sg === tg && sb === tb && sa === ta) return false;
 
   // tolerance = 1 (matches old behavior) — inlined as |a-b| <= 1.
   // visited prevents re-queueing pixels and eliminates an infinite-loop that
@@ -75,4 +78,5 @@ function floodFill(canvas: HTMLCanvasElement, x: number, y: number, fillColor: s
     if (py > 0 && !visited[idx - width]) { visited[idx - width] = 1; stack.push(idx - width); }
   }
   ctx.putImageData(img, 0, 0);
+  return true;
 }

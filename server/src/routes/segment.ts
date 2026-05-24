@@ -2,12 +2,7 @@ import type { Context } from "hono";
 import { PNG } from "pngjs";
 import { segmentSchema, formatZodError } from "./validation.js";
 import { logError, logInfo, newRequestId } from "../log.js";
-
-function decode(b64: string): { width: number; height: number; data: Buffer } {
-  const raw = b64.replace(/^data:[^;]+;base64,/, "");
-  const png = PNG.sync.read(Buffer.from(raw, "base64"));
-  return { width: png.width, height: png.height, data: png.data };
-}
+import { decodeBase64Png } from "../imageApi/pngUtils.js";
 
 function encodeMask(width: number, height: number, mask: Uint8Array): string {
   const png = new PNG({ width, height });
@@ -115,7 +110,7 @@ export async function segmentRoute(c: Context) {
   const t0 = Date.now();
   logInfo(reqId, "/ai/segment", "start", { hint: body.hint.kind });
   try {
-    const src = decode(body.sourcePngBase64);
+    const src = decodeBase64Png(body.sourcePngBase64);
     let mask: Uint8Array;
     let warning: "no_color_match" | "empty_mask" | undefined;
     switch (body.hint.kind) {

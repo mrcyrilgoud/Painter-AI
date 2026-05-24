@@ -20,12 +20,6 @@ function describeContext(ctx: ChatInput["context"]): string {
   for (const l of ctx.layers) {
     lines.push(`  - ${l.name}${l.isAI ? " [AI]" : ""}${l.visible ? "" : " (hidden)"}`);
   }
-  if (ctx.references.length > 0) {
-    lines.push(`References (${ctx.references.length}):`);
-    for (const r of ctx.references) lines.push(`  - role=${r.role} weight=${r.weight.toFixed(2)}`);
-  } else {
-    lines.push("References: none");
-  }
   if (ctx.recentOps.length > 0) {
     lines.push(`Recent ops:`);
     for (const o of ctx.recentOps.slice(-5)) {
@@ -75,7 +69,7 @@ function parseReply(raw: string): ParsedReply {
 function chunkText(text: string): string[] {
   // Split on sentence boundaries; fall back to fixed-size chunks.
   const sentences = text.match(/[^.!?\n]+[.!?\n]?/g);
-  if (sentences && sentences.length > 1) return sentences.map((s) => s);
+  if (sentences && sentences.length > 1) return sentences;
   return text.match(/.{1,40}(\s|$)/g) ?? [text];
 }
 
@@ -106,7 +100,6 @@ export async function chatRoute(c: Context) {
       const rawReply = await runCodexCollectText({
         prompt: userPrompt,
         systemPrompt: CHAT_SYSTEM,
-        sandbox: "read-only",
       });
       const reply = parseReply(rawReply);
 

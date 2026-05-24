@@ -11,6 +11,24 @@
         "VITE_AI_SEGMENTER": "codex",
         "VITE_AI_COPILOT": "codex"
       }
+    },
+    {
+      "name": "painter-ai-mock",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:vite"],
+      "port": 5173,
+      "env": {
+        "VITE_AI_BACKEND": "mock",
+        "VITE_AI_SEGMENTER": "mock",
+        "VITE_AI_COPILOT": "mock"
+      }
+    },
+    {
+      "name": "painter-ai-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:server"],
+      "port": 5174,
+      "cwd": "/Users/mrcyrilgoud/Desktop/repos/Painter-AI"
     }
   ]
 }

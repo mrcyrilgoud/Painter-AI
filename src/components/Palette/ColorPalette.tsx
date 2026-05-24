@@ -10,7 +10,10 @@ const PALETTE = [
 ];
 
 export function ColorPalette() {
-  const { primaryColor, secondaryColor, setPrimaryColor, setSecondaryColor } = useEditorStore();
+  const primaryColor = useEditorStore((s) => s.primaryColor);
+  const secondaryColor = useEditorStore((s) => s.secondaryColor);
+  const setPrimaryColor = useEditorStore((s) => s.setPrimaryColor);
+  const setSecondaryColor = useEditorStore((s) => s.setSecondaryColor);
   return (
     <div className={styles.strip}>
       <div className={styles.activeBox} title="Primary / secondary">

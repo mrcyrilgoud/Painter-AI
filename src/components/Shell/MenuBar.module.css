@@ -12,6 +12,8 @@
   border-radius: var(--radius-sm);
   color: var(--text-2);
   font-size: 13px;
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .trigger:hover,
@@ -42,11 +44,15 @@
   border-radius: var(--radius-sm);
   font-size: 13px;
   color: var(--text-1);
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
-.option:hover {
+.option:hover,
+.option:focus-visible {
   background: var(--accent);
   color: var(--accent-ink);
+  outline: none;
 }
 
 .sep {

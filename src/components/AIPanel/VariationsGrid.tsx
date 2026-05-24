@@ -81,7 +81,9 @@ function VariationTile({
   }, [variation]);
 
   const onEnter = () => {
-    if (!disabled) setPreviewBitmap(variation.image);
+    if (disabled) return;
+    const off = variation.regionBounds;
+    setPreviewBitmap(off ? { image: variation.image, offset: { x: off.x, y: off.y } } : variation.image);
   };
   const onLeave = () => {
     setPreviewBitmap(null);

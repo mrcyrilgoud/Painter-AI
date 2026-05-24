@@ -48,9 +48,15 @@
   font-size: 16px;
   display: grid;
   place-items: center;
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .iconBtn:hover {
   background: var(--surface-3);
   color: var(--text-1);
+}
+
+.iconBtn:active {
+  background: var(--border-1);
 }

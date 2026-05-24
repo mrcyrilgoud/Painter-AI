@@ -1,5 +1,12 @@
 import { config } from "../config.js";
-import type { ImageGenRequest, ImageGenResult, ImageProvider } from "./types.js";
+import type {
+  ImageGenRequest,
+  ImageGenResult,
+  ImageProvider,
+  ImageProviderGenerateOptions,
+} from "./types.js";
+import { logInfo } from "../log.js";
+import { stripBase64DataUrl } from "./pngUtils.js";
 
 /**
  * OpenAI gpt-image-1 provider. Calls the Images API:
@@ -17,12 +24,14 @@ function pickModelSize(w: number, h: number): "1024x1024" | "1024x1536" | "1536x
 }
 
 async function fileFromBase64(b64: string, name: string): Promise<File> {
-  const raw = b64.replace(/^data:[^;]+;base64,/, "");
-  const bytes = Uint8Array.from(Buffer.from(raw, "base64"));
+  const bytes = Uint8Array.from(Buffer.from(stripBase64DataUrl(b64), "base64"));
   return new File([bytes], name, { type: "image/png" });
 }
 
-async function callGenerate(req: ImageGenRequest): Promise<string[]> {
+async function callGenerate(
+  req: ImageGenRequest,
+  options?: ImageProviderGenerateOptions,
+): Promise<string[]> {
   const size = pickModelSize(req.width, req.height);
   const body = {
     model: "gpt-image-1",
@@ -31,6 +40,7 @@ async function callGenerate(req: ImageGenRequest): Promise<string[]> {
     size,
     output_format: "png",
   };
+  const apiStart = Date.now();
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: {
@@ -38,16 +48,29 @@ async function callGenerate(req: ImageGenRequest): Promise<string[]> {
       authorization: `Bearer ${config.openaiApiKey}`,
     },
     body: JSON.stringify(body),
+    signal: options?.signal,
   });
+  const apiMs = Date.now() - apiStart;
   if (!res.ok) {
     const t = await res.text();
     throw new Error(`OpenAI generate ${res.status}: ${t.slice(0, 300)}`);
   }
+  const decodeStart = Date.now();
   const j = (await res.json()) as { data: { b64_json: string }[] };
+  const decodeMs = Date.now() - decodeStart;
+  logInfo("openai", "openai-provider", "perf", {
+    mode: req.mode,
+    apiMs,
+    decodeMs,
+    variationCount: j.data.length,
+  });
   return j.data.map((d) => d.b64_json);
 }
 
-async function callEdits(req: ImageGenRequest): Promise<string[]> {
+async function callEdits(
+  req: ImageGenRequest,
+  options?: ImageProviderGenerateOptions,
+): Promise<string[]> {
   if (!req.sourcePngBase64 || !req.maskPngBase64) {
     throw new Error("inpaint requires both source and mask");
   }
@@ -59,16 +82,31 @@ async function callEdits(req: ImageGenRequest): Promise<string[]> {
   form.append("prompt", req.prompt);
   form.append("n", String(Math.min(req.variations, 4)));
   form.append("size", size);
+  const apiStart = Date.now();
   const res = await fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
     headers: { authorization: `Bearer ${config.openaiApiKey}` },
     body: form,
+    signal: options?.signal,
   });
+  const apiMs = Date.now() - apiStart;
   if (!res.ok) {
     const t = await res.text();
     throw new Error(`OpenAI edits ${res.status}: ${t.slice(0, 300)}`);
   }
+  const decodeStart = Date.now();
   const j = (await res.json()) as { data: { b64_json: string }[] };
+  const decodeMs = Date.now() - decodeStart;
+  logInfo("openai", "openai-provider", "perf", {
+    mode: req.mode,
+    apiMs,
+    decodeMs,
+    variationCount: j.data.length,
+    inputBytes: {
+      source: req.sourcePngBase64.length,
+      mask: req.maskPngBase64.length,
+    },
+  });
   return j.data.map((d) => d.b64_json);
 }
 
@@ -80,10 +118,15 @@ export const openaiProvider: ImageProvider = {
     }
     return { ready: true };
   },
-  async generate(req: ImageGenRequest): Promise<ImageGenResult> {
+  async generate(
+    req: ImageGenRequest,
+    options?: ImageProviderGenerateOptions,
+  ): Promise<ImageGenResult> {
     const isInpaint = req.mode === "inpaint" && !!req.maskPngBase64;
-    const variationsBase64 = isInpaint ? await callEdits(req) : await callGenerate(req);
+    const variationsBase64 = isInpaint
+      ? await callEdits(req, options)
+      : await callGenerate(req, options);
     const seeds = variationsBase64.map((_, i) => (req.seed ?? Date.now()) + i);
-    return { variationsBase64, seeds };
+    return { variationsBase64, seeds, outputKind: "full-canvas" };
   },
 };

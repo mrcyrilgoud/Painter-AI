@@ -84,11 +84,17 @@
   border-radius: var(--radius-sm);
   color: var(--text-1);
   font-size: 11px;
+  transition: background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .floatingBtn:hover {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.floatingBtn:active {
+  background: color-mix(in srgb, var(--accent-soft) 80%, var(--accent));
 }
 
 .faGlyph {

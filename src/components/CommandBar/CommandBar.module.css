@@ -68,11 +68,19 @@
   font-size: 14px;
   line-height: 20px;
   font-family: var(--font-ui);
+  transition: border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
-.input:focus {
+.input:hover {
+  border-color: var(--border-2);
+}
+
+.input:focus,
+.input:focus-visible {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .footer {

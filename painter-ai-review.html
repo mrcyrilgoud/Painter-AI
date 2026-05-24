@@ -1,0 +1,2022 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Painter AI — Design &amp; Implementation Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=VT323&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --bg-2: #ffffff;
+    --bg-3: #f0efec;
+    --bg-4: #e6e4df;
+    --line: #d9d6cf;
+    --line-2: #b9b4a9;
+    --ink: #1a1a17;
+    --ink-2: #5a5852;
+    --ink-3: #8c8a82;
+    --accent: #3257ff;
+    --accent-soft: #e0e7ff;
+    --ai: #b08cff;
+    --ai-soft: #ede5ff;
+    --ok: #1f9d55;
+    --warn: #d97706;
+    --danger: #c1352b;
+    --gemini: #1f7cf0;
+    --cursor: #111;
+    --radius: 8px;
+    --radius-lg: 14px;
+    --font: "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    --pixel: "VT323", "Courier New", monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #15161a;
+    --bg-2: #1d1f24;
+    --bg-3: #24262c;
+    --bg-4: #2d2f36;
+    --line: #2e3038;
+    --line-2: #3b3d46;
+    --ink: #ececea;
+    --ink-2: #a8a8a4;
+    --ink-3: #6e6e6a;
+    --accent-soft: #1d2a55;
+    --ai-soft: #2a1f3d;
+    --cursor: #e8e8e8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    font-size: 14px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 28px 80px; }
+
+  /* Header */
+  .topbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 28px; border-bottom: 1px solid var(--line);
+    background: var(--bg-2); position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(8px);
+  }
+  .brand-mark { color: var(--accent); font-size: 22px; }
+  [data-theme="dark"] .brand-mark { color: var(--ai); }
+  .brand-title { font-family: var(--pixel); font-size: 26px; letter-spacing: 1.5px; }
+  .brand-sub { color: var(--ink-3); font-size: 12px; font-family: var(--mono); }
+  .topbar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .icon-btn {
+    border: 1px solid var(--line); background: var(--bg-2); color: var(--ink);
+    width: 34px; height: 34px; border-radius: var(--radius); cursor: pointer;
+    font-size: 15px;
+  }
+  .icon-btn:hover { background: var(--bg-3); }
+
+  /* Nav tabs */
+  .nav { display: flex; gap: 2px; flex-wrap: wrap; margin: 12px 0 28px; border-bottom: 1px solid var(--line); }
+  .nav button {
+    border: 0; background: transparent; color: var(--ink-2);
+    padding: 10px 14px; font: inherit; font-weight: 500; cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .nav button:hover { color: var(--ink); }
+  .nav button.active { color: var(--ink); border-color: var(--accent); }
+  [data-theme="dark"] .nav button.active { border-color: var(--ai); }
+
+  /* Sections */
+  section.tab { display: none; }
+  section.tab.active { display: block; animation: fade .25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  h1 { font-family: var(--pixel); font-size: 38px; letter-spacing: 1px; margin: 8px 0 4px; }
+  h2 { font-size: 20px; margin: 32px 0 12px; }
+  h3 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--ink-2); margin: 24px 0 8px; }
+  p { margin: 0 0 10px; }
+  a { color: var(--accent); }
+  [data-theme="dark"] a { color: var(--ai); }
+
+  code, pre { font-family: var(--mono); font-size: 12.5px; }
+  pre {
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 12px 14px; overflow-x: auto; margin: 8px 0 14px;
+    line-height: 1.5;
+  }
+  .inline-code {
+    background: var(--bg-3); padding: 1px 6px; border-radius: 4px;
+    font-family: var(--mono); font-size: 12.5px; border: 1px solid var(--line);
+  }
+
+  /* Cards & grids */
+  .grid { display: grid; gap: 14px; }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 700px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: var(--radius-lg); padding: 16px 18px;
+  }
+  .card h4 { margin: 0 0 8px; font-size: 14px; }
+  .card .muted { color: var(--ink-3); font-size: 12.5px; }
+
+  .pill {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    background: var(--bg-3); color: var(--ink-2);
+    font-size: 11.5px; font-weight: 500; border: 1px solid var(--line);
+  }
+  .pill.accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .pill.ai { background: var(--ai-soft); color: var(--ai); border-color: transparent; }
+  .pill.ok { background: rgba(31,157,85,.12); color: var(--ok); border-color: transparent; }
+  .pill.warn { background: rgba(217,119,6,.12); color: var(--warn); border-color: transparent; }
+  .pill.gemini { background: rgba(31,124,240,.12); color: var(--gemini); border-color: transparent; }
+  .pill.cursor { background: var(--bg-4); color: var(--ink); border-color: transparent; }
+
+  /* App layout mock */
+  .app-mock {
+    border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden;
+    background: var(--bg-2); margin: 12px 0 6px;
+  }
+  .app-mock-header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 12px; height: 36px;
+    border-bottom: 1px solid var(--line); background: var(--bg-2);
+  }
+  .app-mock-header .mock-brand { font-family: var(--pixel); font-size: 18px; letter-spacing: 1px; }
+  .app-mock-header .mock-menu { display: flex; gap: 12px; color: var(--ink-2); font-size: 12px; }
+  .app-mock-body { display: grid; grid-template-columns: 44px 1fr 280px; min-height: 220px; }
+  .app-mock-toolbox {
+    border-right: 1px solid var(--line); padding: 6px 4px; display: flex; flex-direction: column; gap: 4px;
+    background: var(--bg-2);
+  }
+  .app-mock-toolbox .t {
+    width: 34px; height: 34px; border: 1px solid var(--line); border-radius: var(--radius);
+    display: grid; place-items: center; font-size: 15px; color: var(--ink-2);
+    background: var(--bg-2);
+  }
+  .app-mock-toolbox .t.ai { color: var(--ai); border-color: var(--ai); background: var(--ai-soft); }
+  .app-mock-canvas {
+    background:
+      linear-gradient(45deg, var(--bg-3) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--bg-3) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--bg-3) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--bg-3) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    display: grid; place-items: center; color: var(--ink-3); font-size: 12px;
+  }
+  .app-mock-aipanel {
+    border-left: 1px solid var(--line); background: var(--bg-2);
+    display: flex; flex-direction: column;
+  }
+  .app-mock-tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 8px; }
+  .app-mock-tabs span { padding: 8px 10px; font-size: 12px; color: var(--ink-2); }
+  .app-mock-tabs span.on { color: var(--ink); border-bottom: 2px solid var(--accent); }
+  [data-theme="dark"] .app-mock-tabs span.on { border-color: var(--ai); }
+  .app-mock-thread { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+  .app-mock-thread .b { padding: 6px 10px; border-radius: 12px; max-width: 80%; }
+  .app-mock-thread .b.u { align-self: flex-end; background: var(--accent); color: white; }
+  .app-mock-thread .b.a { align-self: flex-start; background: var(--bg-3); }
+  .app-mock-thread .opcard { border: 1px solid var(--ai); border-radius: 8px; padding: 8px; background: var(--ai-soft); }
+  .app-mock-thread .opcard .mode { color: var(--ai); font-weight: 600; font-size: 11px; }
+  .app-mock-thread .opcard .vars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 6px; }
+  .app-mock-thread .opcard .v { aspect-ratio: 1; background: var(--bg-3); border-radius: 4px; }
+
+  .app-mock-footer {
+    display: flex; align-items: center; gap: 12px; padding: 0 12px; height: 28px;
+    border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-2); background: var(--bg-2);
+  }
+  .app-mock-footer .cmdk {
+    margin-left: auto; border: 1px solid var(--line); padding: 1px 8px; border-radius: 4px;
+    font-family: var(--mono); font-size: 11px;
+  }
+
+  /* Demo panel */
+  .demo {
+    border: 1px solid var(--line); border-radius: var(--radius-lg);
+    background: var(--bg-2); padding: 0; overflow: hidden;
+  }
+  .demo-head {
+    display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+    border-bottom: 1px solid var(--line); background: var(--bg-2);
+  }
+  .demo-head .seg {
+    display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden;
+  }
+  .demo-head .seg button {
+    border: 0; background: transparent; color: var(--ink-2); cursor: pointer;
+    padding: 6px 14px; font: inherit; font-weight: 500; font-size: 12.5px;
+  }
+  .demo-head .seg button.on {
+    background: var(--ink); color: var(--bg-2);
+  }
+  .demo-body { display: grid; grid-template-columns: 1.05fr 1fr; gap: 0; }
+  @media (max-width: 800px) { .demo-body { grid-template-columns: 1fr; } }
+  .demo-left { padding: 16px; border-right: 1px solid var(--line); }
+  @media (max-width: 800px) { .demo-left { border-right: 0; border-bottom: 1px solid var(--line); } }
+  .demo-right { padding: 16px; background: var(--bg); }
+  [data-theme="dark"] .demo-right { background: var(--bg); }
+
+  .demo label { display: block; font-size: 11.5px; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 4px; }
+  .demo label:first-child { margin-top: 0; }
+  .demo select, .demo input[type="text"] {
+    width: 100%; padding: 8px 10px; font: inherit;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--bg-2); color: var(--ink);
+  }
+  .demo .row { display: flex; gap: 10px; align-items: center; }
+  .demo .row > * { flex: 1; }
+  .demo .row .grow { flex: 1; }
+  .demo .row .small { flex: 0 0 90px; }
+  .demo .btn-primary {
+    background: var(--accent); color: white; border: 0; border-radius: var(--radius);
+    padding: 9px 18px; cursor: pointer; font: inherit; font-weight: 600;
+    margin-top: 14px;
+  }
+  .demo .btn-primary:hover { filter: brightness(1.05); }
+  .demo .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .demo .btn-ghost {
+    background: transparent; color: var(--ink-2); border: 1px solid var(--line);
+    padding: 7px 12px; border-radius: var(--radius); cursor: pointer; font: inherit;
+  }
+
+  details.codepanel {
+    margin-top: 10px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--bg);
+  }
+  details.codepanel summary {
+    padding: 8px 12px; cursor: pointer; font-size: 12px; color: var(--ink-2);
+    list-style: none; user-select: none;
+  }
+  details.codepanel summary::-webkit-details-marker { display: none; }
+  details.codepanel summary::before { content: "▸ "; }
+  details.codepanel[open] summary::before { content: "▾ "; }
+  details.codepanel pre { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: var(--bg-2); }
+
+  .vars {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+  }
+  .var {
+    aspect-ratio: 1; border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; cursor: pointer; position: relative; background: var(--bg-3);
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s;
+  }
+  .var:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.12); border-color: var(--ai); }
+  .var.committed { border: 2px solid var(--accent); }
+  .var canvas { width: 100%; height: 100%; display: block; image-rendering: auto; }
+  .var .seed {
+    position: absolute; left: 6px; bottom: 6px; padding: 1px 6px;
+    background: rgba(0,0,0,.55); color: #fff; font-family: var(--mono);
+    font-size: 10px; border-radius: 4px;
+  }
+  .var .badge {
+    position: absolute; right: 6px; top: 6px; padding: 1px 6px;
+    background: var(--accent); color: white; font-size: 10px; border-radius: 4px;
+  }
+
+  .status-line {
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-3);
+    min-height: 16px; margin-top: 8px;
+  }
+  .status-line.err { color: var(--danger); }
+  .status-line.ok { color: var(--ok); }
+
+  /* Inpaint demo */
+  .inpaint-demo { margin-top: 14px; }
+  .inpaint-body {
+    display: grid; grid-template-columns: 1fr 320px; gap: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  @media (max-width: 800px) { .inpaint-body { grid-template-columns: 1fr; } }
+  .inpaint-stage {
+    padding: 16px; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    border-right: 1px solid var(--line);
+  }
+  @media (max-width: 800px) { .inpaint-stage { border-right: 0; border-bottom: 1px solid var(--line); } }
+  .inpaint-canvas-wrap {
+    position: relative; width: 480px; max-width: 100%;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; line-height: 0;
+  }
+  .inpaint-canvas-wrap canvas {
+    display: block; width: 100%; height: auto;
+  }
+  .inpaint-canvas-wrap #inp-overlay {
+    position: absolute; left: 0; top: 0; cursor: crosshair;
+  }
+  .inpaint-hint { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+  .inpaint-controls { padding: 16px; }
+  .inpaint-controls textarea {
+    width: 100%; padding: 8px 10px; font: inherit; resize: vertical;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--bg-2); color: var(--ink);
+  }
+  .inpaint-vars-wrap { padding: 16px; }
+  .inpaint-vars { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 700px) { .inpaint-vars { grid-template-columns: repeat(2, 1fr); } }
+  .inpaint-vars .var { aspect-ratio: 3 / 2; }
+
+  ul.feature-list { padding-left: 18px; margin: 6px 0 12px; }
+  ul.feature-list li { margin: 4px 0; }
+
+  table.providers {
+    width: 100%; border-collapse: collapse; margin: 8px 0 18px;
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
+  }
+  table.providers th, table.providers td {
+    text-align: left; padding: 10px 12px; font-size: 12.5px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.providers tr:last-child td { border-bottom: 0; }
+  table.providers th { background: var(--bg-3); font-weight: 600; color: var(--ink); }
+
+  .arch {
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius-lg);
+    padding: 18px; margin: 12px 0;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: stretch;
+  }
+  @media (max-width: 700px) { .arch { grid-template-columns: 1fr; } }
+  .arch .col {
+    border: 1px dashed var(--line-2); border-radius: var(--radius); padding: 12px;
+    background: var(--bg);
+  }
+  .arch .col h5 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-2); }
+  .arch .col ul { margin: 0; padding-left: 16px; font-size: 12.5px; }
+  .arch .arrow { text-align: center; color: var(--ink-3); font-family: var(--mono); font-size: 14px; }
+
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 12px; }
+
+  footer {
+    margin-top: 60px; padding-top: 18px; border-top: 1px solid var(--line);
+    font-size: 12px; color: var(--ink-3);
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand-mark">✦</span>
+  <div>
+    <div class="brand-title">PAINTER AI</div>
+    <div class="brand-sub">design &amp; implementation review · v0.1</div>
+  </div>
+  <div class="right">
+    <span class="pill ok" id="theme-tag">light</span>
+    <button class="icon-btn" id="theme-toggle" title="Toggle theme">◐</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1>Painter AI</h1>
+  <p style="color: var(--ink-2); max-width: 720px;">
+    A browser-based paint application with first-class AI affordances — pixel-accurate per-layer canvases,
+    a copilot panel, a ⌘K command bar, and a pluggable backend that can route image generation to
+    OpenAI, Codex, <span class="pill gemini">Gemini</span>, or <span class="pill cursor">Cursor</span>.
+    This document reviews the current design, the shipped features, and how it's wired together —
+    with two interactive demos at the bottom that exercise the real provider code path.
+  </p>
+
+  <nav class="nav" id="nav">
+    <button data-tab="design" class="active">Design</button>
+    <button data-tab="features">Features</button>
+    <button data-tab="tech">Technical implementation</button>
+    <button data-tab="demos">Interactive demos</button>
+  </nav>
+
+  <!-- ============================ DESIGN ============================ -->
+  <section class="tab active" id="design">
+    <h2>Visual language</h2>
+    <p>
+      Painter AI mixes a modern editor chrome (Inter + a small Tailwind-style token system)
+      with retro accents — a <span class="inline-code" style="font-family: var(--pixel); font-size: 16px;">VT323</span>
+      wordmark, square pixel-art glyphs in the toolbox, and a chunky 28-color heritage palette.
+      The accent shifts from <em>cobalt</em> in light mode to <em>magenta</em> in dark mode, while AI affordances
+      stay on a consistent <em>lavender</em> (<code>--ai-glow: #b08cff</code>) so they read as
+      a separate layer regardless of theme.
+    </p>
+
+    <div class="legend">
+      <span class="pill">UI · Inter</span>
+      <span class="pill">Mono · JetBrains Mono</span>
+      <span class="pill" style="font-family: var(--pixel); font-size: 14px;">Pixel · VT323</span>
+      <span class="pill accent">Accent (light)</span>
+      <span class="pill ai">AI glow</span>
+      <span class="pill ok">OK</span>
+      <span class="pill warn">Warn</span>
+    </div>
+
+    <h2>Layout at a glance</h2>
+    <p>The shell is a fixed three-row, three-column grid. Toggle the theme above to see how the chrome adapts.</p>
+
+    <div class="app-mock">
+      <div class="app-mock-header">
+        <span class="brand-mark">✦</span>
+        <span class="mock-brand">PAINTER AI</span>
+        <span style="font-family: var(--mono); color: var(--ink-3); font-size: 11px;">untitled</span>
+        <span class="mock-menu" style="margin-left: 16px;">
+          <span>File</span><span>Edit</span><span>View</span><span>Image</span><span>AI</span><span>Help</span>
+        </span>
+      </div>
+      <div class="app-mock-body">
+        <div class="app-mock-toolbox">
+          <div class="t">▱</div><div class="t">⌖</div><div class="t">✎</div>
+          <div class="t">✒</div><div class="t">▢</div><div class="t">⊙</div>
+          <div class="t">╱</div><div class="t">▭</div><div class="t">◯</div>
+          <div class="t">A</div><div class="t ai">✦</div>
+        </div>
+        <div class="app-mock-canvas">canvas stage (transparent checker)</div>
+        <div class="app-mock-aipanel">
+          <div class="app-mock-tabs"><span class="on">Chat</span><span>History</span><span>Refs</span></div>
+          <div class="app-mock-thread">
+            <div class="b u">make the sky moodier</div>
+            <div class="b a">I'll restyle the top half of the canvas with deeper blues.</div>
+            <div class="opcard">
+              <div><span class="mode">RESTYLE</span> · moody sky · <span style="color:var(--ink-3);font-size:11px;">87%</span></div>
+              <div class="vars"><div class="v"></div><div class="v"></div><div class="v"></div><div class="v"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="app-mock-footer">
+        <span>Ready</span>
+        <span style="margin-left: 14px;">1024×1024</span>
+        <span style="margin-left: 14px;">100%</span>
+        <span class="cmdk">⌘K</span>
+      </div>
+    </div>
+
+    <h2>Design tokens</h2>
+    <div class="grid grid-3">
+      <div class="card">
+        <h4>Surface</h4>
+        <div class="muted">surface-0 / surface-1 / surface-2 / surface-3 — four progressive lifts, with borders at <code>--border-1</code> &amp; <code>--border-2</code>.</div>
+      </div>
+      <div class="card">
+        <h4>Type</h4>
+        <div class="muted">Inter for the UI, JetBrains Mono for dimensions/keyboard chips, VT323 for the wordmark and a few labels.</div>
+      </div>
+      <div class="card">
+        <h4>Radius &amp; shadow</h4>
+        <div class="muted"><code>sm/md/lg = 4/8/12</code>. Two shadows: <code>--shadow-1</code> for cards, <code>--shadow-pop</code> for menus &amp; the command bar.</div>
+      </div>
+      <div class="card">
+        <h4>AI affordance</h4>
+        <div class="muted">A second accent (<code>--ai-glow</code>) ensures AI panels, op proposals, and the ✦ tool stay visually distinct from regular tools.</div>
+      </div>
+      <div class="card">
+        <h4>Theme</h4>
+        <div class="muted">Single attribute switch — <code>html[data-theme="dark"]</code> overrides all CSS variables. Persisted via the editor store.</div>
+      </div>
+      <div class="card">
+        <h4>Animation budget</h4>
+        <div class="muted">Marching-ants for selection, a 25ms-per-chunk streaming cursor in chat, and <code>fade-up</code> on bubbles. Nothing else moves.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ FEATURES ============================ -->
+  <section class="tab" id="features">
+    <h2>What ships today</h2>
+
+    <h3>Canvas &amp; tools</h3>
+    <div class="grid grid-2">
+      <div class="card">
+        <h4>Per-layer <code>&lt;canvas&gt;</code> stack</h4>
+        <ul class="feature-list">
+          <li>Each layer owns its own <code>HTMLCanvasElement</code>, stacked absolutely inside a wrap that auto-fits the stage with a 48 px margin.</li>
+          <li>Layers carry <em>visibility, opacity, and blend mode</em> applied via inline style on every render tick.</li>
+          <li>AI-generated layers get an <code>aiProvenance</code> record (mode, prompt, seed, references, mask) used by the History tab.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>11 tools</h4>
+        <ul class="feature-list">
+          <li>Select, Smart Select (point/box/text via <code>/ai/segment</code>), Pencil, Brush, Eraser, Fill, Line, Rect, Ellipse, Text, AI Brush.</li>
+          <li>Pointer events flow through a per-tool handler; strokes commit before/after <code>ImageData</code> to a history stack supporting undo/redo.</li>
+          <li>Keyboard: <code>⌘Z</code>/<code>⌘⇧Z</code>, <code>[</code>/<code>]</code> for brush size.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>AI panel</h3>
+    <div class="grid grid-3">
+      <div class="card">
+        <h4>Chat tab</h4>
+        <div class="muted">Streams text + op-proposal events from the Copilot. Selection size, reference count, and canvas dimensions are surfaced as a context chip above the composer.</div>
+      </div>
+      <div class="card">
+        <h4>History tab</h4>
+        <div class="muted">Newest-first list of committed AI ops, each with a 48 px thumbnail drawn from the variation's bitmap. Clicking jumps to the associated layer.</div>
+      </div>
+      <div class="card">
+        <h4>References tab</h4>
+        <div class="muted">Reference images tagged as <em>style / subject / composition / color</em> with a 0–1 weight slider. Forwarded into every <code>AIGenerateRequest</code>.</div>
+      </div>
+      <div class="card">
+        <h4>Op proposal cards</h4>
+        <div class="muted">Inline cards inside the chat thread show the mode, prompt, model confidence, and a 2×2 variation grid. Click to commit; the others fade.</div>
+      </div>
+      <div class="card">
+        <h4>Autonomy selector</h4>
+        <div class="muted">Three modes: <em>Propose</em> (default — every op needs a click), <em>Auto-confident</em> (auto-commits the top variation when confidence ≥ threshold), <em>Agentic</em> (multi-step chains).</div>
+      </div>
+      <div class="card">
+        <h4>⌘K command bar</h4>
+        <div class="muted">Global, context-aware. The mode chip flips between <em>Inpaint</em>, <em>Outpaint</em>, and <em>New Layer</em> based on whether you have a selection or references.</div>
+      </div>
+    </div>
+
+    <h3>Project &amp; persistence</h3>
+    <div class="grid grid-2">
+      <div class="card">
+        <h4>Autosave</h4>
+        <div class="muted">5-second debounced snapshot of the entire project (layers serialized as PNG data URLs) into <code>localStorage</code>. Corrupt blobs are quietly discarded on next boot.</div>
+      </div>
+      <div class="card">
+        <h4>Open / Save / Export</h4>
+        <div class="muted"><code>.paintai.json</code> for round-tripping (versioned, currently v1). PNG and JPG export via composite.</div>
+      </div>
+      <div class="card">
+        <h4>Presets</h4>
+        <div class="muted">512², 1024², 1024×1536 portrait, 1536×1024 landscape — all wired to File and Image menus.</div>
+      </div>
+      <div class="card">
+        <h4>Status bar</h4>
+        <div class="muted">Live dimensions, zoom, and an inline <code>⌘K</code> trigger. Tool handlers write into <code>setStatusText</code> for transient hints.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ TECH ============================ -->
+  <section class="tab" id="tech">
+    <h2>Architecture</h2>
+
+    <div class="arch">
+      <div class="col">
+        <h5>Frontend (Vite + React 18)</h5>
+        <ul>
+          <li>Zustand stores: <code>editorStore</code>, <code>chatStore</code>, <code>uiStore</code></li>
+          <li>Per-layer <code>&lt;canvas&gt;</code> elements (no React reconciliation on pixels)</li>
+          <li>Three seams (<code>AIBackend</code>, <code>Segmenter</code>, <code>Copilot</code>) each switchable via Vite env vars</li>
+        </ul>
+      </div>
+      <div class="arrow">⟶</div>
+      <div class="col">
+        <h5>Proxy (Hono + Node)</h5>
+        <ul>
+          <li>Listens on <code>127.0.0.1:5174</code></li>
+          <li><code>POST /ai/generate</code>, <code>/ai/segment</code>, <code>/ai/chat</code> (SSE)</li>
+          <li>Zod validation + a 32 MB body cap</li>
+          <li>Picks one <code>ImageProvider</code> from <code>IMAGE_MODEL_PROVIDER</code></li>
+        </ul>
+      </div>
+      <div class="arrow">⟶</div>
+      <div class="col">
+        <h5>Providers</h5>
+        <ul>
+          <li><code>mock</code> — procedural fill</li>
+          <li><code>openai</code> — gpt-image-1</li>
+          <li><code>codex-canvas</code> · <code>cursor-canvas</code> · <code>gemini-canvas</code> — model writes a <code>draw()</code> function executed in a sandboxed <code>vm</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>State management</h2>
+    <p>Three Zustand stores, all instantiated as singletons on <code>globalThis</code> so HMR doesn't fork them:</p>
+    <table class="providers">
+      <tr><th>Store</th><th>Owns</th><th>Notes</th></tr>
+      <tr>
+        <td><code>editorStore</code></td>
+        <td>theme, project name, dimensions, layers (each with its own <code>&lt;canvas&gt;</code>), selection, references, active tool, brush size, primary/secondary color, autonomy, history</td>
+        <td>Mutations to pixel data go through <code>commitPixelChange</code>, which pushes onto a <code>HistoryStack</code> and bumps <code>renderTick</code> to force overlay refresh.</td>
+      </tr>
+      <tr>
+        <td><code>chatStore</code></td>
+        <td>chat messages: user text, streamed assistant chunks, op-proposal cards, system action-log entries</td>
+        <td>Op proposals own their own state machine: <em>pending → ready → committed/dismissed</em>, plus a progress number while the generator runs.</td>
+      </tr>
+      <tr>
+        <td><code>uiStore</code></td>
+        <td>command-bar open/closed</td>
+        <td>Kept separate so transient UI doesn't trigger autosave.</td>
+      </tr>
+    </table>
+
+    <h2>The proxy server</h2>
+    <p>
+      The server (<code>server/src/index.ts</code>) is intentionally thin: bind to localhost only, validate every body with zod,
+      cap requests at 32 MB, and hand off to one of three routes.
+      <code>/ai/chat</code> uses SSE so the UI can stream assistant text and an op-proposal event in the same response.
+    </p>
+
+    <h3>Endpoints</h3>
+    <table class="providers">
+      <tr><th>Route</th><th>Backed by</th><th>Returns</th></tr>
+      <tr><td><code>GET /ai/health</code></td><td>spawns <code>codex --version</code> + checks <code>imageProvider.isReady()</code></td><td>JSON status</td></tr>
+      <tr><td><code>POST /ai/generate</code></td><td><code>imageProvider.generate()</code></td><td><code>{ variationsBase64, seeds }</code></td></tr>
+      <tr><td><code>POST /ai/segment</code></td><td>pure JS — flood fill, rect, or color-word mask</td><td>PNG mask, base64</td></tr>
+      <tr><td><code>POST /ai/chat</code></td><td><code>codex exec --json</code>, fenced <code>json-op</code> blocks parsed out</td><td>SSE: <code>text</code> chunks + optional <code>op-proposal</code> + <code>done</code></td></tr>
+    </table>
+
+    <h2>Image providers</h2>
+    <p>
+      All providers conform to the <code>ImageProvider</code> interface
+      (<code>name</code>, <code>isReady()</code>, <code>generate(req): { variationsBase64, seeds }</code>).
+      The interesting three share a single <em>canvas-code renderer</em> — the model is asked to write a
+      <code>function draw(ctx, width, height)</code>, the response is extracted, and the code runs inside
+      <code>node:vm</code> against a Cairo-backed canvas with a 5 s timeout.
+    </p>
+
+    <table class="providers">
+      <tr><th>Provider</th><th>Transport</th><th>Readiness gate</th></tr>
+      <tr>
+        <td><code>mock</code></td>
+        <td>none — server-side procedural fill</td>
+        <td>always ready</td>
+      </tr>
+      <tr>
+        <td><code>openai</code></td>
+        <td>HTTPS, <code>gpt-image-1</code></td>
+        <td><code>OPENAI_API_KEY</code> set</td>
+      </tr>
+      <tr>
+        <td><code>codex-canvas</code></td>
+        <td><code>codex exec --json</code> (subprocess, stdin prompt)</td>
+        <td><code>codex</code> binary on PATH</td>
+      </tr>
+      <tr>
+        <td><span class="pill gemini">gemini-canvas</span></td>
+        <td><code>gemini -p &lt;prompt&gt; [-m gemini-2.5-pro]</code> (subprocess)</td>
+        <td>always reports ready — the CLI must be installed</td>
+      </tr>
+      <tr>
+        <td><span class="pill cursor">cursor-canvas</span></td>
+        <td><code>@cursor/sdk</code> · <code>Agent.prompt(fullPrompt, { apiKey, model })</code></td>
+        <td><code>CURSOR_API_KEY</code> set</td>
+      </tr>
+    </table>
+
+    <h3>Canvas-code rendering pipeline</h3>
+    <pre>// shared by codex-canvas, cursor-canvas, gemini-canvas
+const raw      = await generateText(userPrompt, DRAW_SYSTEM);    // model call
+const code     = extractCode(raw);                               // strips fences
+const canvas   = createCanvas(width, height);                    // node-canvas
+runDrawCode(code, ctx, width, height);                           // vm, 5s timeout
+const base     = ctx.getImageData(0, 0, width, height);
+// 4 variations via fixed R/G/B/brightness shifts on the same base
+return { variationsBase64: shifts.map(s => deriveVariation(base, ...s)), seeds };</pre>
+    <p style="color: var(--ink-2);">
+      The trade-off is honest about itself: model latency dominates (one call per request), and variations are
+      cheap recolorings of the same composition rather than independent draws. The win is that the same renderer
+      hosts three very different model transports behind one interface.
+    </p>
+
+    <h2>Frontend seams</h2>
+    <p>The three AI capabilities are swappable via Vite env vars at build time:</p>
+    <pre>// src/ai/index.ts
+const backendKind   = import.meta.env.VITE_AI_BACKEND   ?? "mock"; // mock | codex
+const segmenterKind = import.meta.env.VITE_AI_SEGMENTER ?? "mock"; // mock | codex
+const copilotKind   = import.meta.env.VITE_AI_COPILOT   ?? "mock"; // mock | codex</pre>
+    <p>The "codex" implementations talk to the proxy; the proxy then chooses which downstream model serves the request based on its own env. Two layers of indirection — but each is a single dial.</p>
+
+    <h2>Testing surface</h2>
+    <p>
+      <code>vitest</code> with <code>jsdom</code>. The canvas-code renderer is tested by feeding canned draw functions
+      through the real <code>node-canvas</code> + <code>vm</code> pipeline, asserting on pixel data. Provider readiness
+      and the proxy's zod validation each have their own suites.
+    </p>
+  </section>
+
+  <!-- ============================ DEMOS ============================ -->
+  <section class="tab" id="demos">
+    <h2>Interactive demos</h2>
+    <p>
+      Pick a provider and a scene. The demo builds the same prompt the server would send, returns a canned
+      <code>function draw(ctx, w, h)</code> in place of the real model call, then runs it through the
+      <em>actual</em> client-side equivalent of <code>canvasCodeRenderer.ts</code>: <code>extractCode()</code>,
+      a sandboxed call, an <code>ImageData</code> capture, and the four variation shifts. Click a tile to commit it.
+    </p>
+
+    <div class="demo">
+      <div class="demo-head">
+        <strong style="font-size: 13px;">Canvas-code provider</strong>
+        <div class="seg" id="provider-seg">
+          <button data-prov="gemini" class="on">Gemini</button>
+          <button data-prov="cursor">Cursor</button>
+        </div>
+        <span class="pill gemini" id="prov-pill" style="margin-left: 6px;">gemini-canvas · CLI subprocess</span>
+      </div>
+
+      <div class="demo-body">
+        <div class="demo-left">
+          <label>Scene preset</label>
+          <select id="scene">
+            <option value="sunset">sunset over a lake</option>
+            <option value="castle">snowy castle on a hill</option>
+            <option value="pixel-forest">pixel-art forest at night</option>
+            <option value="watercolor">watercolor flowers in a vase</option>
+            <option value="broken">(simulate a transport error)</option>
+          </select>
+
+          <div class="row" style="margin-top: 6px;">
+            <div style="flex: 1;">
+              <label>Style hint</label>
+              <select id="style">
+                <option value="none">none</option>
+                <option value="oilpaint">oilpaint</option>
+                <option value="watercolor">watercolor</option>
+                <option value="anime">anime</option>
+                <option value="sketch">sketch</option>
+                <option value="pixel">pixel</option>
+              </select>
+            </div>
+            <div style="flex: 0 0 110px;">
+              <label>Canvas</label>
+              <select id="dims">
+                <option value="320">320²</option>
+                <option value="384" selected>384²</option>
+                <option value="512">512²</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="btn-primary" id="run">Generate ↵</button>
+
+          <details class="codepanel">
+            <summary>System prompt sent with every request</summary>
+            <pre id="sys-prompt"></pre>
+          </details>
+
+          <details class="codepanel">
+            <summary>User prompt this run will send</summary>
+            <pre id="user-prompt"></pre>
+          </details>
+
+          <details class="codepanel">
+            <summary>Model response (raw text)</summary>
+            <pre id="model-response">— not run yet —</pre>
+          </details>
+
+          <details class="codepanel">
+            <summary>Extracted <code>function draw(ctx, w, h)</code></summary>
+            <pre id="extracted-code">— not run yet —</pre>
+          </details>
+
+          <div class="status-line" id="status"></div>
+        </div>
+
+        <div class="demo-right">
+          <label style="margin-top: 0;">Variations · click to commit</label>
+          <div class="vars" id="vars">
+            <div class="var"><canvas width="384" height="384"></canvas><span class="seed">—</span></div>
+            <div class="var"><canvas width="384" height="384"></canvas><span class="seed">—</span></div>
+            <div class="var"><canvas width="384" height="384"></canvas><span class="seed">—</span></div>
+            <div class="var"><canvas width="384" height="384"></canvas><span class="seed">—</span></div>
+          </div>
+          <div class="status-line" id="commit-status">no variation committed</div>
+          <details class="codepanel" style="margin-top: 14px;">
+            <summary>Variation shift matrix (same as <code>VARIATION_SHIFTS</code> in <code>canvasCodeRenderer.ts</code>)</summary>
+<pre>// rShift, gShift, bShift, brightnessScale
+[  0,   0,    0,  1.00 ],
+[ 10,  -5,  -15,  0.93 ],
+[ -8,   5,   18,  1.07 ],
+[ 15,  10,  -10,  0.96 ],</pre>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <h2 style="margin-top: 40px;">Inpaint demo · drag a region, prompt, replace</h2>
+    <p>
+      This second demo mirrors the app's <code>inpaint</code> mode. The architecture has two halves:
+      <strong>surrounding pixels become context</strong> (the demo samples a palette + 4×4 thumbnail from
+      the area around your rectangle and feeds it to the procedural fill as a soft constraint), and
+      <strong>the rectangle is the only edit window</strong> — the result is blended back through a
+      feathered mask whose softness you control with the slider. The base outside the rect is preserved
+      bit-for-bit.
+    </p>
+    <p style="color: var(--ink-2); font-size: 12.5px;">
+      The demo POSTs to the real <code>/ai/generate</code> via the vite dev proxy (→ <code>127.0.0.1:5174</code>).
+      Output quality is whatever provider the server is set to —
+      <span class="pill" style="font-size: 11px;">mock</span> returns colored splotches,
+      <span class="pill gemini" style="font-size: 11px;">gemini-canvas</span> / <span class="pill cursor" style="font-size: 11px;">cursor-canvas</span> /
+      <span class="pill" style="font-size: 11px;">openai</span> return real model output. If the server is unreachable, the demo falls back to a
+      client-side procedural patch so the flow still works.
+    </p>
+
+    <div class="demo inpaint-demo">
+      <div class="demo-head">
+        <strong style="font-size: 13px;">POST /ai/generate</strong>
+        <span class="pill" id="inp-provider-pill" style="margin-left: 6px;" title="Provider returned by /ai/health">provider · checking…</span>
+        <span class="pill" id="inp-region-pill" style="margin-left: 6px;">no region</span>
+      </div>
+
+      <div class="inpaint-body">
+        <div class="inpaint-stage">
+          <div class="inpaint-canvas-wrap">
+            <canvas id="inp-base" width="480" height="320"></canvas>
+            <canvas id="inp-overlay" width="480" height="320"></canvas>
+          </div>
+          <div class="inpaint-hint">Drag on the canvas to mark the area to replace · click outside to clear</div>
+        </div>
+
+        <div class="inpaint-controls">
+          <label>Prompt</label>
+          <textarea id="inp-prompt" rows="2" placeholder="e.g. a flock of birds in formation"></textarea>
+
+          <div class="row" style="margin-top: 10px; align-items: center; gap: 10px;">
+            <label style="font-size: 11px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; margin: 0;" title="Feather radius — softens the edge where the fill blends into the surrounding pixels.">
+              Feather
+              <input type="range" min="0" max="32" value="8" id="inp-feather" style="width: 100px; accent-color: var(--ai);">
+              <span id="inp-feather-val" style="font-family: var(--mono); font-size: 11px; color: var(--ink-3); width: 32px; text-align: right;">8px</span>
+            </label>
+          </div>
+
+          <div class="row" style="margin-top: 10px;">
+            <button class="btn-primary" id="inp-run" style="margin: 0;">Inpaint ↵</button>
+            <button class="btn-ghost" id="inp-clear" type="button">Clear selection</button>
+            <button class="btn-ghost" id="inp-reset" type="button" title="Reset base image">Reset base</button>
+          </div>
+
+          <div class="status-line" id="inp-status" style="margin-top: 10px;">draw a rectangle to begin</div>
+
+          <details class="codepanel" style="margin-top: 10px;">
+            <summary>Surrounding context · what we'd send to a text-only model</summary>
+            <div id="inp-context" style="font-family: var(--mono); font-size: 11px; color: var(--ink-2); padding: 8px;">— draw a region to sample context —</div>
+          </details>
+
+          <details class="codepanel" style="margin-top: 10px;">
+            <summary>Request that would be sent to <code>/ai/generate</code></summary>
+            <pre id="inp-request">— waiting for selection —</pre>
+          </details>
+        </div>
+      </div>
+
+      <div class="inpaint-vars-wrap">
+        <label style="margin: 0 0 8px;">Variations · click to commit onto base</label>
+        <div class="vars inpaint-vars" id="inp-vars">
+          <div class="var"><canvas width="480" height="320"></canvas></div>
+          <div class="var"><canvas width="480" height="320"></canvas></div>
+          <div class="var"><canvas width="480" height="320"></canvas></div>
+          <div class="var"><canvas width="480" height="320"></canvas></div>
+        </div>
+        <div class="status-line" id="inp-commit-status">no variation committed</div>
+      </div>
+    </div>
+
+    <h3>What's actually running</h3>
+    <p>
+      The model response is stubbed (this page is offline), but everything downstream of it is the same algorithm
+      the server uses: regex code extraction, sandboxed execution against a 2D context, <code>getImageData</code>,
+      and the four-shift recoloring loop. Swap the canned response with a real CLI/SDK call and you have the
+      production provider.
+    </p>
+  </section>
+
+  <footer>
+    Painter AI · review generated <span id="gen-date"></span>. Toggle the theme above to see the
+    full editor chrome adapt across light / dark.
+  </footer>
+</div>
+
+<script>
+// ───────────────────────── Theme ─────────────────────────
+const themeBtn = document.getElementById('theme-toggle');
+const themeTag = document.getElementById('theme-tag');
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  themeTag.textContent = t;
+  themeBtn.textContent = t === 'light' ? '◐' : '◑';
+}
+setTheme('light');
+themeBtn.addEventListener('click', () => {
+  const cur = document.documentElement.dataset.theme || 'light';
+  setTheme(cur === 'light' ? 'dark' : 'light');
+});
+
+// ───────────────────────── Tabs ─────────────────────────
+const nav = document.getElementById('nav');
+nav.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-tab]');
+  if (!btn) return;
+  nav.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+  const tab = btn.dataset.tab;
+  document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('active', s.id === tab));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+// ───────────────────────── Date ─────────────────────────
+document.getElementById('gen-date').textContent =
+  new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+// ───────────────────────── Demo: provider switch ─────────────────────────
+const provSeg = document.getElementById('provider-seg');
+const provPill = document.getElementById('prov-pill');
+let provider = 'gemini';
+provSeg.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-prov]');
+  if (!b) return;
+  provider = b.dataset.prov;
+  provSeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  provPill.className = 'pill ' + provider;
+  provPill.textContent = provider === 'gemini'
+    ? 'gemini-canvas · CLI subprocess'
+    : 'cursor-canvas · @cursor/sdk Agent.prompt';
+});
+
+// ───────────────────────── Demo: prompts ─────────────────────────
+const DRAW_SYSTEM = `You are a canvas artist. Write a JavaScript function that renders the requested scene onto an HTML5 Canvas 2D context.
+
+Rules:
+- Output ONLY a single function with this exact signature:
+  function draw(ctx, width, height) { ... }
+- Use only standard Canvas 2D API: fillRect, fillStyle, strokeStyle, beginPath, arc, moveTo, lineTo, bezierCurveTo, createLinearGradient, createRadialGradient, etc.
+- Fill the entire canvas with a coherent background first.
+- Represent the subject matter clearly and literally — a sunset should have orange/pink sky and horizon, a castle should have towers and walls, a forest should have trees, etc.
+- Match the style hint: "oilpaint" = thick brushstrokes with save/restore, "watercolor" = low-alpha overlapping shapes, "anime" = bold flat fills with hard outlines, "sketch" = thin grey lines, "pixel" = sharp-edge rectangles on a grid.
+- No external resources. No try/catch. No console.log. No comments.
+- Output ONLY the raw function body — no markdown, no explanation, no code fences.`;
+
+document.getElementById('sys-prompt').textContent = DRAW_SYSTEM;
+
+const SCENES = {
+  sunset: {
+    label: 'sunset over a lake',
+    code: `function draw(ctx, width, height) {
+  const sky = ctx.createLinearGradient(0, 0, 0, height * 0.6);
+  sky.addColorStop(0, '#1a1c4a');
+  sky.addColorStop(0.45, '#d04a6e');
+  sky.addColorStop(1, '#ffb86b');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height * 0.6);
+
+  const sunR = Math.min(width, height) * 0.09;
+  const sx = width * 0.62, sy = height * 0.5;
+  const sun = ctx.createRadialGradient(sx, sy, sunR * 0.2, sx, sy, sunR);
+  sun.addColorStop(0, '#fff2c2');
+  sun.addColorStop(1, '#ff8a4c');
+  ctx.fillStyle = sun;
+  ctx.beginPath(); ctx.arc(sx, sy, sunR, 0, Math.PI * 2); ctx.fill();
+
+  ctx.fillStyle = '#2c2444';
+  ctx.beginPath();
+  ctx.moveTo(0, height * 0.6);
+  ctx.lineTo(width * 0.25, height * 0.42);
+  ctx.lineTo(width * 0.45, height * 0.55);
+  ctx.lineTo(width * 0.7, height * 0.4);
+  ctx.lineTo(width * 0.9, height * 0.5);
+  ctx.lineTo(width, height * 0.58);
+  ctx.lineTo(width, height * 0.6);
+  ctx.closePath();
+  ctx.fill();
+
+  const lake = ctx.createLinearGradient(0, height * 0.6, 0, height);
+  lake.addColorStop(0, '#5e3a6e');
+  lake.addColorStop(0.5, '#3e2752');
+  lake.addColorStop(1, '#1a1230');
+  ctx.fillStyle = lake;
+  ctx.fillRect(0, height * 0.6, width, height * 0.4);
+
+  ctx.fillStyle = 'rgba(255,200,140,0.55)';
+  ctx.fillRect(sx - sunR * 0.4, height * 0.6, sunR * 0.8, height * 0.36);
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  for (let i = 0; i < 14; i++) {
+    const y = height * 0.62 + i * (height * 0.025);
+    ctx.fillRect(width * 0.2, y, width * 0.6, 1);
+  }
+}`
+  },
+  castle: {
+    label: 'snowy castle on a hill',
+    code: `function draw(ctx, width, height) {
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, '#9bb4d0');
+  sky.addColorStop(1, '#dbe6f0');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = '#f4f7fa';
+  ctx.beginPath();
+  ctx.moveTo(0, height * 0.78);
+  ctx.quadraticCurveTo(width * 0.5, height * 0.55, width, height * 0.8);
+  ctx.lineTo(width, height); ctx.lineTo(0, height);
+  ctx.closePath(); ctx.fill();
+
+  const cx = width * 0.5, base = height * 0.7;
+  ctx.fillStyle = '#6d6a7a';
+  ctx.fillRect(cx - width * 0.18, base - height * 0.18, width * 0.36, height * 0.18);
+  ctx.fillRect(cx - width * 0.22, base - height * 0.26, width * 0.08, height * 0.26);
+  ctx.fillRect(cx + width * 0.14, base - height * 0.26, width * 0.08, height * 0.26);
+  ctx.fillRect(cx - width * 0.04, base - height * 0.32, width * 0.08, height * 0.32);
+
+  ctx.fillStyle = '#3a2a4a';
+  ctx.beginPath();
+  ctx.moveTo(cx - width * 0.24, base - height * 0.26);
+  ctx.lineTo(cx - width * 0.18, base - height * 0.32);
+  ctx.lineTo(cx - width * 0.12, base - height * 0.26);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + width * 0.12, base - height * 0.26);
+  ctx.lineTo(cx + width * 0.18, base - height * 0.32);
+  ctx.lineTo(cx + width * 0.24, base - height * 0.26);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx - width * 0.06, base - height * 0.32);
+  ctx.lineTo(cx, base - height * 0.4);
+  ctx.lineTo(cx + width * 0.06, base - height * 0.32);
+  ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle = '#1a1c2a';
+  ctx.fillRect(cx - width * 0.025, base - height * 0.1, width * 0.05, height * 0.1);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  for (let i = 0; i < 60; i++) {
+    const x = (i * 37 + 13) % width;
+    const y = (i * 53 + 7) % (height * 0.7);
+    ctx.fillRect(x, y, 2, 2);
+  }
+}`
+  },
+  'pixel-forest': {
+    label: 'pixel-art forest at night',
+    code: `function draw(ctx, width, height) {
+  const cell = Math.max(4, Math.floor(width / 64));
+  for (let y = 0; y < height; y += cell) {
+    for (let x = 0; x < width; x += cell) {
+      const v = (Math.sin(x * 0.03) + Math.cos(y * 0.04)) * 0.5;
+      const g = 20 + Math.floor(v * 14 + 14);
+      ctx.fillStyle = 'rgb(' + (8 + g) + ',' + (12 + g) + ',' + (40 + g) + ')';
+      ctx.fillRect(x, y, cell, cell);
+    }
+  }
+  ctx.fillStyle = '#f8e98a';
+  for (let i = 0; i < 30; i++) {
+    const x = Math.floor((i * 91 + 13) % width / cell) * cell;
+    const y = Math.floor(((i * 37 + 5) % (height * 0.4)) / cell) * cell;
+    ctx.fillRect(x, y, cell, cell);
+  }
+  ctx.fillStyle = '#f0e480';
+  ctx.fillRect(width * 0.78 - cell * 3, height * 0.16 - cell * 3, cell * 6, cell * 6);
+
+  for (let i = 0; i < 8; i++) {
+    const tx = (i * 0.13 + 0.05) * width;
+    const th = height * (0.3 + ((i * 13) % 8) / 20);
+    const tw = cell * (3 + (i % 3));
+    ctx.fillStyle = '#3a2a18';
+    ctx.fillRect(Math.round(tx / cell) * cell, height - th, cell * 2, th);
+    ctx.fillStyle = '#0e2e1c';
+    ctx.fillRect(Math.round(tx / cell) * cell - tw / 2, height - th - cell * 4, tw, cell * 8);
+    ctx.fillStyle = '#143b24';
+    ctx.fillRect(Math.round(tx / cell) * cell - tw / 2 + cell, height - th - cell * 4 + cell, tw - cell * 2, cell * 6);
+  }
+}`
+  },
+  watercolor: {
+    label: 'watercolor flowers in a vase',
+    code: `function draw(ctx, width, height) {
+  ctx.fillStyle = '#fdfaf2';
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.globalAlpha = 0.35;
+  const palette = ['#e07a9b', '#b67ce0', '#7cc6e0', '#e0c47c', '#e0937c'];
+  for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = palette[i % palette.length];
+    const x = width * 0.5 + (Math.sin(i * 1.3) * width * 0.25);
+    const y = height * 0.35 + (Math.cos(i * 1.7) * height * 0.18);
+    const r = Math.max(8, Math.min(width, height) * (0.04 + (i % 4) * 0.015));
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.strokeStyle = 'rgba(80,120,70,0.55)';
+  ctx.lineWidth = Math.max(1, width * 0.005);
+  for (let i = 0; i < 7; i++) {
+    const sx = width * (0.38 + i * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(sx, height * 0.55);
+    ctx.quadraticCurveTo(sx + (i - 3) * width * 0.02, height * 0.65, width * 0.5, height * 0.78);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#9eb1c0';
+  ctx.beginPath();
+  ctx.moveTo(width * 0.42, height * 0.78);
+  ctx.lineTo(width * 0.58, height * 0.78);
+  ctx.lineTo(width * 0.62, height * 0.95);
+  ctx.lineTo(width * 0.38, height * 0.95);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.fillRect(width * 0.4, height * 0.79, width * 0.04, height * 0.14);
+}`
+  },
+  broken: {
+    // Simulates the CLI/SDK itself rejecting the call (network, auth, quota).
+    // We can't actually demo the vm timeout in-browser — a real while(true)
+    // would freeze the page, since JS can't preempt synchronous code without
+    // a Worker. So fakeModelCall throws before any draw() runs.
+    label: '(simulate a transport error)',
+    code: `function draw(ctx, width, height) {
+  // placeholder — never executed because fakeModelCall throws first
+}`,
+    forceFail: true
+  }
+};
+
+const VARIATION_SHIFTS = [
+  [0, 0, 0, 1.00],
+  [10, -5, -15, 0.93],
+  [-8, 5, 18, 1.07],
+  [15, 10, -10, 0.96],
+];
+
+function extractCode(raw) {
+  const fenced = raw.match(/```(?:javascript|js)?\s*([\s\S]*?)```/);
+  if (fenced) return fenced[1].trim();
+  const fn = raw.match(/function draw\s*\([\s\S]*/);
+  if (fn) return fn[0].trim();
+  return raw.trim();
+}
+
+function buildUserPrompt() {
+  const scene = SCENES[document.getElementById('scene').value];
+  const style = document.getElementById('style').value;
+  const dims = document.getElementById('dims').value;
+  const styleHint = style && style !== 'none' ? ' Style: ' + style + '.' : '';
+  return `Scene: "${scene.label}"${styleHint}\nCanvas: ${dims}×${dims}px`;
+}
+
+function refreshPromptPreview() {
+  document.getElementById('user-prompt').textContent = buildUserPrompt();
+}
+['scene', 'style', 'dims'].forEach(id =>
+  document.getElementById(id).addEventListener('change', refreshPromptPreview));
+refreshPromptPreview();
+
+function runDrawCode(code, ctx, width, height) {
+  // Browser equivalent of the server's node:vm execution. No timeout —
+  // synchronous JS can't be preempted from JS without a Worker, so we rely
+  // on the canned scenes being well-behaved.
+  const compiled = new Function('ctx', 'width', 'height',
+    code + '\ndraw(ctx, width, height);');
+  try {
+    compiled(ctx, width, height);
+  } catch (err) {
+    const firstLine = code.split('\n')[0].slice(0, 120);
+    throw new Error('draw() execution failed (' + err.message + '); first line: ' + firstLine);
+  }
+}
+
+function deriveVariation(baseImageData, targetCanvas, rShift, gShift, bShift, brightness) {
+  const { data, width, height } = baseImageData;
+  const ctx = targetCanvas.getContext('2d');
+  targetCanvas.width = width;
+  targetCanvas.height = height;
+  const out = ctx.createImageData(width, height);
+  const o = out.data;
+  for (let i = 0; i < data.length; i += 4) {
+    o[i]     = Math.min(255, Math.max(0, Math.round((data[i]     + rShift) * brightness)));
+    o[i + 1] = Math.min(255, Math.max(0, Math.round((data[i + 1] + gShift) * brightness)));
+    o[i + 2] = Math.min(255, Math.max(0, Math.round((data[i + 2] + bShift) * brightness)));
+    o[i + 3] = data[i + 3];
+  }
+  ctx.putImageData(out, 0, 0);
+}
+
+const status = document.getElementById('status');
+const commitStatus = document.getElementById('commit-status');
+const varTiles = document.querySelectorAll('#vars .var');
+
+// True once a successful Generate run has populated the tiles. Gates commit
+// clicks so users can't "commit" the blank starter canvases.
+let tilesGenerated = false;
+
+function setStatus(msg, kind) {
+  status.className = kind ? 'status-line ' + kind : 'status-line';
+  status.textContent = msg;
+}
+
+function resetCommitStatus() {
+  commitStatus.className = 'status-line';
+  commitStatus.textContent = 'no variation committed';
+}
+
+async function fakeModelCall(code, scene) {
+  // Emulate a small amount of latency so the UI feels real.
+  // Gemini & Cursor are both ~1-3s for short prompts; we use 600-900 ms here.
+  const delay = provider === 'cursor' ? 850 : 650;
+  await new Promise(r => setTimeout(r, delay));
+  if (scene.forceFail) {
+    throw new Error(provider + ' agent failed: simulated error from canned response');
+  }
+  // The wire response would be wrapped in fences sometimes; alternate to show extractCode working.
+  return Math.random() < 0.5
+    ? '```javascript\n' + code + '\n```'
+    : code;
+}
+
+document.getElementById('run').addEventListener('click', async () => {
+  const sceneKey = document.getElementById('scene').value;
+  const scene = SCENES[sceneKey];
+  const dims = parseInt(document.getElementById('dims').value, 10);
+  const runBtn = document.getElementById('run');
+  // Snapshot the provider so a mid-flight toggle can't mislabel the result.
+  const runProvider = provider;
+  runBtn.disabled = true;
+
+  varTiles.forEach(v => { v.classList.remove('committed'); v.querySelector('.badge')?.remove(); });
+  resetCommitStatus();
+
+  try {
+    setStatus(runProvider + ' agent: awaiting response (canned)…');
+    let raw;
+    try {
+      raw = await fakeModelCall(scene.code, scene);
+    } catch (err) {
+      document.getElementById('model-response').textContent = '⚠ ' + err.message;
+      document.getElementById('extracted-code').textContent = '— skipped —';
+      setStatus(err.message, 'err');
+      return;
+    }
+    document.getElementById('model-response').textContent = raw;
+
+    const code = extractCode(raw);
+    document.getElementById('extracted-code').textContent = code;
+
+    // Render base into an offscreen canvas at the chosen dims.
+    setStatus('rendering base image…');
+    await new Promise(r => requestAnimationFrame(r));
+    const base = document.createElement('canvas');
+    base.width = dims; base.height = dims;
+    const baseCtx = base.getContext('2d');
+    runDrawCode(code, baseCtx, dims, dims);
+    const baseImageData = baseCtx.getImageData(0, 0, dims, dims);
+
+    setStatus('deriving 4 variations…');
+    await new Promise(r => requestAnimationFrame(r));
+    const seedBase = 1000 + Math.floor(Math.random() * 9000);
+    varTiles.forEach((tile, i) => {
+      const c = tile.querySelector('canvas');
+      const [r, g, b, bright] = VARIATION_SHIFTS[i];
+      deriveVariation(baseImageData, c, r, g, b, bright);
+      tile.querySelector('.seed').textContent = '#' + (seedBase + i);
+    });
+    tilesGenerated = true;
+
+    const provLabel = runProvider === 'gemini' ? 'gemini-canvas' : 'cursor-canvas';
+    setStatus('✓ ' + provLabel + ' returned ' + raw.length + ' chars · 4 variations ready · click one to commit', 'ok');
+  } finally {
+    runBtn.disabled = false;
+  }
+});
+
+varTiles.forEach((tile, i) => {
+  tile.addEventListener('click', () => {
+    if (!tilesGenerated) return;
+    varTiles.forEach(v => { v.classList.remove('committed'); v.querySelector('.badge')?.remove(); });
+    tile.classList.add('committed');
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = '✓ on layer';
+    tile.appendChild(badge);
+    commitStatus.textContent = '✓ Committed variation ' + (i + 1) + ' as a new AI layer (mock — no real canvas in this doc)';
+    commitStatus.className = 'status-line ok';
+  });
+});
+
+// ───────────────────────── Inpaint demo ─────────────────────────
+const inpBase = document.getElementById('inp-base');
+const inpOverlay = document.getElementById('inp-overlay');
+const inpStatus = document.getElementById('inp-status');
+const inpCommitStatus = document.getElementById('inp-commit-status');
+const inpRegionPill = document.getElementById('inp-region-pill');
+const inpRequestPre = document.getElementById('inp-request');
+const inpPromptInput = document.getElementById('inp-prompt');
+const inpVars = document.querySelectorAll('#inp-vars .var');
+const INP_W = inpBase.width, INP_H = inpBase.height;
+
+let inpRegion = null;             // { x, y, w, h } in canvas-pixel space
+let inpDrag = null;               // { x0, y0 } during pointer drag
+let inpVariationsReady = false;
+let inpPatches = null;            // 4 offscreen canvases of the fill, recolored
+
+function inpSetStatus(msg, kind) {
+  inpStatus.className = kind ? 'status-line ' + kind : 'status-line';
+  inpStatus.textContent = msg;
+}
+function inpResetCommit() {
+  inpCommitStatus.className = 'status-line';
+  inpCommitStatus.textContent = 'no variation committed';
+  inpVars.forEach(v => { v.classList.remove('committed'); v.querySelector('.badge')?.remove(); });
+}
+
+function inpDrawBase() {
+  // Re-use the sunset scene from SCENES; render at INP_W × INP_H.
+  const ctx = inpBase.getContext('2d');
+  runDrawCode(SCENES.sunset.code, ctx, INP_W, INP_H);
+}
+inpDrawBase();
+
+function inpClearOverlay() {
+  const ctx = inpOverlay.getContext('2d');
+  ctx.clearRect(0, 0, INP_W, INP_H);
+}
+
+function inpRenderMaskOverlay() {
+  const ctx = inpOverlay.getContext('2d');
+  ctx.clearRect(0, 0, INP_W, INP_H);
+  if (!inpRegion) return;
+  const { x, y, w, h } = inpRegion;
+  // Dim everything outside the rect.
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, 0, INP_W, INP_H);
+  ctx.clearRect(x, y, w, h);
+  // Marching-ants-style dashed border.
+  ctx.save();
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = '#b08cff';
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.restore();
+}
+
+function inpCanvasPoint(e) {
+  const rect = inpOverlay.getBoundingClientRect();
+  const sx = INP_W / rect.width, sy = INP_H / rect.height;
+  return {
+    x: Math.max(0, Math.min(INP_W, (e.clientX - rect.left) * sx)),
+    y: Math.max(0, Math.min(INP_H, (e.clientY - rect.top) * sy)),
+  };
+}
+
+inpOverlay.addEventListener('pointerdown', (e) => {
+  inpOverlay.setPointerCapture(e.pointerId);
+  const p = inpCanvasPoint(e);
+  inpDrag = { x0: p.x, y0: p.y };
+});
+inpOverlay.addEventListener('pointermove', (e) => {
+  if (!inpDrag) return;
+  const p = inpCanvasPoint(e);
+  inpRegion = {
+    x: Math.round(Math.min(inpDrag.x0, p.x)),
+    y: Math.round(Math.min(inpDrag.y0, p.y)),
+    w: Math.round(Math.abs(p.x - inpDrag.x0)),
+    h: Math.round(Math.abs(p.y - inpDrag.y0)),
+  };
+  inpRenderMaskOverlay();
+});
+inpOverlay.addEventListener('pointerup', () => {
+  inpDrag = null;
+  if (inpRegion && (inpRegion.w < 8 || inpRegion.h < 8)) {
+    // Treat tiny drags as a click-to-clear.
+    inpRegion = null;
+    inpClearOverlay();
+  }
+  inpUpdateRegionUI();
+});
+
+function inpUpdateRegionUI() {
+  if (inpRegion) {
+    inpRegionPill.textContent = `region ${inpRegion.w}×${inpRegion.h} @ (${inpRegion.x},${inpRegion.y})`;
+    inpRegionPill.classList.add('ai');
+    inpRegionPill.classList.remove('pill', 'plain');
+    inpRegionPill.className = 'pill ai';
+    inpSetStatus('region selected · type a prompt and hit Inpaint');
+  } else {
+    inpRegionPill.textContent = 'no region';
+    inpRegionPill.className = 'pill';
+    inpSetStatus('draw a rectangle to begin');
+  }
+  inpRefreshRequestPreview();
+  inpRefreshContextPanel();
+}
+
+function inpRefreshRequestPreview() {
+  const prompt = inpPromptInput.value.trim() || '<empty>';
+  const region = inpRegion
+    ? `{ x: ${inpRegion.x}, y: ${inpRegion.y}, w: ${inpRegion.w}, h: ${inpRegion.h} }`
+    : 'null';
+  const feather = inpFeather ? inpFeather.value : 4;
+  inpRequestPre.textContent =
+    `POST /ai/generate
+{
+  "mode": "inpaint",
+  "prompt": ${JSON.stringify(prompt)},
+  "source": "<png base64 · ${INP_W}×${INP_H}>",
+  "mask":   "<png base64 · rect ${region}>",
+  "maskBoundsPx": ${region},
+  "featherPx": ${feather},
+  "variations": 4,
+  "cfgScale": 7, "steps": 20,
+  "dimensions": { "width": ${INP_W}, "height": ${INP_H} }
+}`;
+}
+inpPromptInput.addEventListener('input', inpRefreshRequestPreview);
+
+// ── Feather slider ──
+const inpFeather = document.getElementById('inp-feather');
+const inpFeatherVal = document.getElementById('inp-feather-val');
+inpFeather.addEventListener('input', () => {
+  inpFeatherVal.textContent = inpFeather.value + 'px';
+  inpRefreshRequestPreview();
+  // Re-render committed-preview tiles if patches are ready, so the user sees
+  // the feather change without re-running the model.
+  if (inpVariationsReady && inpPatches) {
+    inpVars.forEach((tile, i) => inpComposeIntoTile(tile.querySelector('canvas'), inpPatches[i]));
+  }
+});
+
+// ── Context describer (mirror of server/src/imageApi/contextDescriber.ts) ──
+const inpContextPanel = document.getElementById('inp-context');
+
+function inpQuantize(v) { return Math.round(v / 16) * 16; }
+function inpHex(r, g, b) {
+  return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+}
+function inpAverageColor(data) {
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++; }
+  return n === 0 ? { r: 0, g: 0, b: 0 } : { r: r / n, g: g / n, b: b / n };
+}
+function inpTopPalette(data, k) {
+  const hist = new Map(); let total = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const key = (inpQuantize(data[i]) << 16) | (inpQuantize(data[i + 1]) << 8) | inpQuantize(data[i + 2]);
+    hist.set(key, (hist.get(key) || 0) + 1); total++;
+  }
+  if (total === 0) return [];
+  return Array.from(hist.entries()).sort((a, b) => b[1] - a[1]).slice(0, k).map(([key, c]) => ({
+    hex: inpHex((key >> 16) & 0xff, (key >> 8) & 0xff, key & 0xff), pct: c / total,
+  }));
+}
+function inpDescribeContext(region) {
+  const band = 24;
+  const x0 = Math.max(0, region.x - band);
+  const y0 = Math.max(0, region.y - band);
+  const x1 = Math.min(INP_W, region.x + region.w + band);
+  const y1 = Math.min(INP_H, region.y + region.h + band);
+  const ctx = inpBase.getContext('2d');
+  // Concatenate the four edge strips into one pixel buffer for palette stats.
+  function strip(x, y, w, h) {
+    if (w <= 0 || h <= 0) return new Uint8ClampedArray(0);
+    return ctx.getImageData(x, y, w, h).data;
+  }
+  const top    = strip(x0, y0, x1 - x0, Math.max(0, region.y - y0));
+  const bottom = strip(x0, region.y + region.h, x1 - x0, Math.max(0, y1 - (region.y + region.h)));
+  const left   = strip(x0, y0, Math.max(0, region.x - x0), y1 - y0);
+  const right  = strip(region.x + region.w, y0, Math.max(0, x1 - (region.x + region.w)), y1 - y0);
+  const merged = new Uint8ClampedArray(top.length + bottom.length + left.length + right.length);
+  merged.set(top, 0);
+  merged.set(bottom, top.length);
+  merged.set(left, top.length + bottom.length);
+  merged.set(right, top.length + bottom.length + left.length);
+  const palette = inpTopPalette(merged, 6);
+  const edge = {
+    top:    inpHex(...Object.values(inpAverageColor(top))),
+    right:  inpHex(...Object.values(inpAverageColor(right))),
+    bottom: inpHex(...Object.values(inpAverageColor(bottom))),
+    left:   inpHex(...Object.values(inpAverageColor(left))),
+  };
+  // 4x4 thumbnail grid.
+  const cw = Math.max(1, Math.floor(INP_W / 4));
+  const ch = Math.max(1, Math.floor(INP_H / 4));
+  const grid = [];
+  for (let row = 0; row < 4; row++) {
+    const cols = [];
+    for (let col = 0; col < 4; col++) {
+      const px = col * cw, py = row * ch;
+      const pw = col === 3 ? INP_W - px : cw;
+      const ph = row === 3 ? INP_H - py : ch;
+      const d = ctx.getImageData(px, py, pw, ph).data;
+      cols.push(inpHex(...Object.values(inpAverageColor(d))));
+    }
+    grid.push(cols);
+  }
+  // Sample actual pixel rows just outside each edge of the mask rect.
+  // Row 0 = closest to boundary, row 1 = next, row 2 = farthest.
+  const EDGE_ROWS = 3, EDGE_SAMPLES = 12;
+  function samplePixelRow(pixels, len) {
+    const out = [];
+    for (let s = 0; s < EDGE_SAMPLES; s++) {
+      const idx = Math.min(len - 1, Math.floor((s / (EDGE_SAMPLES - 1)) * (len - 1)));
+      const i = idx * 4;
+      out.push(inpHex(pixels[i], pixels[i + 1], pixels[i + 2]));
+    }
+    return out;
+  }
+  const edgeRows = { top: [], right: [], bottom: [], left: [] };
+  for (let ri = 0; ri < EDGE_ROWS; ri++) {
+    // Top: rows above the region
+    const ty = region.y - 1 - ri;
+    const tx = Math.max(0, region.x), tw = Math.min(INP_W - tx, region.w);
+    if (ty >= 0 && tw > 0) {
+      edgeRows.top.push(samplePixelRow(ctx.getImageData(tx, ty, tw, 1).data, tw));
+    } else edgeRows.top.push([]);
+    // Bottom: rows below
+    const by = region.y + region.h + ri;
+    if (by < INP_H && tw > 0) {
+      edgeRows.bottom.push(samplePixelRow(ctx.getImageData(tx, by, tw, 1).data, tw));
+    } else edgeRows.bottom.push([]);
+    // Left: columns to the left
+    const lx = region.x - 1 - ri;
+    const ly = Math.max(0, region.y), lh = Math.min(INP_H - ly, region.h);
+    if (lx >= 0 && lh > 0) {
+      edgeRows.left.push(samplePixelRow(ctx.getImageData(lx, ly, 1, lh).data, lh));
+    } else edgeRows.left.push([]);
+    // Right: columns to the right
+    const rx2 = region.x + region.w + ri;
+    if (rx2 < INP_W && lh > 0) {
+      edgeRows.right.push(samplePixelRow(ctx.getImageData(rx2, ly, 1, lh).data, lh));
+    } else edgeRows.right.push([]);
+  }
+
+  return { palette, edge, grid, edgeRows };
+}
+
+function inpRefreshContextPanel() {
+  if (!inpRegion) {
+    inpContextPanel.textContent = '— draw a region to sample context —';
+    return;
+  }
+  const ctx = inpDescribeContext(inpRegion);
+  const swatch = (hex) => `<span style="display:inline-block;width:14px;height:14px;border:1px solid var(--line);background:${hex};vertical-align:middle;margin-right:4px;border-radius:3px;"></span>`;
+  const paletteHtml = ctx.palette.map((p) => `${swatch(p.hex)}<code>${p.hex}</code> <span style="color:var(--ink-3);">(${Math.round(p.pct * 100)}%)</span>`).join(' · ');
+  const edgeHtml = `top ${swatch(ctx.edge.top)}<code>${ctx.edge.top}</code> · right ${swatch(ctx.edge.right)}<code>${ctx.edge.right}</code> · bottom ${swatch(ctx.edge.bottom)}<code>${ctx.edge.bottom}</code> · left ${swatch(ctx.edge.left)}<code>${ctx.edge.left}</code>`;
+  const gridHtml = ctx.grid.map((row) => row.map((hex) => swatch(hex)).join('')).join('<br>');
+  const rowSwatches = (rows) => rows[0]?.map((hex) => swatch(hex)).join('') || '—';
+  const edgeRowHtml =
+    `top: ${rowSwatches(ctx.edgeRows.top)} &nbsp; bottom: ${rowSwatches(ctx.edgeRows.bottom)}<br>` +
+    `left: ${rowSwatches(ctx.edgeRows.left)} &nbsp; right: ${rowSwatches(ctx.edgeRows.right)}`;
+  inpContextPanel.innerHTML =
+    `<div><strong>Boundary palette:</strong> ${paletteHtml}</div>` +
+    `<div style="margin-top:6px;"><strong>Edge colors:</strong> ${edgeHtml}</div>` +
+    `<div style="margin-top:6px;"><strong>Edge row-0 pixels (model seeds edge strips from these):</strong><br>${edgeRowHtml}</div>` +
+    `<div style="margin-top:6px;"><strong>Global thumbnail (4×4):</strong><br>${gridHtml}</div>`;
+}
+
+// Cached context for the current region — also used to seed inpRenderFill.
+let inpContextCache = null;
+
+document.getElementById('inp-clear').addEventListener('click', () => {
+  inpRegion = null;
+  inpClearOverlay();
+  inpUpdateRegionUI();
+});
+document.getElementById('inp-reset').addEventListener('click', () => {
+  inpDrawBase();
+  inpRegion = null;
+  inpClearOverlay();
+  inpUpdateRegionUI();
+  inpVariationsReady = false;
+  inpPatches = null;
+  inpVars.forEach(v => v.querySelector('canvas').getContext('2d').clearRect(0, 0, INP_W, INP_H));
+  inpResetCommit();
+  inpSetStatus('base reset · draw a rectangle to begin');
+});
+
+// Deterministic prompt → fill. A tiny FNV-1a-ish hash picks the hue, the
+// number of shapes, and their stroke density. Same prompt → same fill.
+function inpHash(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+function inpRenderFill(targetCtx, w, h, prompt) {
+  const seed = inpHash(prompt.toLowerCase().trim() || 'untitled');
+  const rand = (n) => {
+    let x = (seed ^ (n * 2654435761)) >>> 0;
+    x ^= x << 13; x >>>= 0;
+    x ^= x >> 17;
+    x ^= x << 5; x >>>= 0;
+    return (x >>> 0) / 0xffffffff;
+  };
+
+  // Pull surrounding palette + edge colors so the fill blends into the scene
+  // instead of looking like a procedural sticker. Falls back to a prompt-derived
+  // hue when no context has been sampled (e.g. tests).
+  const ctx = inpContextCache || (inpRegion ? inpDescribeContext(inpRegion) : null);
+  let topC = '#888', botC = '#444', accent = `hsl(${Math.floor(rand(1) * 360)},60%,55%)`;
+  if (ctx) {
+    topC = ctx.edge.top;
+    botC = ctx.edge.bottom;
+    accent = ctx.palette[Math.floor(rand(2) * Math.max(1, ctx.palette.length))]?.hex || accent;
+  }
+
+  // Vertical gradient matching the surrounding top/bottom edge colors.
+  const g = targetCtx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, topC);
+  g.addColorStop(1, botC);
+  targetCtx.fillStyle = g;
+  targetCtx.fillRect(0, 0, w, h);
+
+  // Blobs sampled from the surrounding palette so colors match in.
+  const palette = ctx?.palette?.map((p) => p.hex) ?? [accent];
+  const blobs = 6 + Math.floor(rand(4) * 6);
+  for (let i = 0; i < blobs; i++) {
+    const cx = rand(10 + i) * w;
+    const cy = rand(20 + i) * h;
+    const r = (0.15 + rand(30 + i) * 0.35) * Math.min(w, h);
+    targetCtx.globalAlpha = 0.20 + rand(40 + i) * 0.28;
+    targetCtx.fillStyle = palette[Math.floor(rand(50 + i) * palette.length)] || accent;
+    targetCtx.beginPath();
+    targetCtx.arc(cx, cy, r, 0, Math.PI * 2);
+    targetCtx.fill();
+  }
+  targetCtx.globalAlpha = 1;
+
+  // Sparse strokes in the accent color from the surroundings.
+  const strokes = 4 + Math.floor(rand(80) * 6);
+  targetCtx.strokeStyle = accent;
+  targetCtx.lineWidth = Math.max(1, w * 0.005);
+  for (let i = 0; i < strokes; i++) {
+    targetCtx.beginPath();
+    targetCtx.moveTo(rand(100 + i) * w, rand(110 + i) * h);
+    targetCtx.lineTo(rand(120 + i) * w, rand(130 + i) * h);
+    targetCtx.stroke();
+  }
+
+  // Edge-seed pass: paint actual source pixel colors along each 2px boundary
+  // strip, mirroring what INPAINT_SYSTEM instructs the model to do first.
+  if (ctx && ctx.edgeRows) {
+    const paintEdgeStrip = (hexes, x, y, isHoriz) => {
+      if (!hexes || hexes.length === 0) return;
+      const count = hexes.length;
+      for (let s = 0; s < count; s++) {
+        const pos = Math.round((s / (count - 1)) * (isHoriz ? w - 1 : h - 1));
+        targetCtx.fillStyle = hexes[s];
+        if (isHoriz) targetCtx.fillRect(pos, y, Math.ceil(w / count) + 1, 2);
+        else         targetCtx.fillRect(x, pos, 2, Math.ceil(h / count) + 1);
+      }
+    };
+    paintEdgeStrip(ctx.edgeRows.top[0],    0, 0,     true);
+    paintEdgeStrip(ctx.edgeRows.top[1],    0, 1,     true);
+    paintEdgeStrip(ctx.edgeRows.bottom[0], 0, h - 1, true);
+    paintEdgeStrip(ctx.edgeRows.bottom[1], 0, h - 2, true);
+    paintEdgeStrip(ctx.edgeRows.left[0],   0, 0,     false);
+    paintEdgeStrip(ctx.edgeRows.left[1],   1, 0,     false);
+    paintEdgeStrip(ctx.edgeRows.right[0],  w - 1, 0, false);
+    paintEdgeStrip(ctx.edgeRows.right[1],  w - 2, 0, false);
+  }
+
+  // Small ✦ watermark so the AI patch is unmistakably AI-drawn.
+  targetCtx.fillStyle = 'rgba(255,255,255,0.85)';
+  targetCtx.font = `${Math.max(10, Math.round(w * 0.06))}px "VT323", monospace`;
+  targetCtx.fillText('✦ AI', 6, h - 6);
+}
+
+function inpRecolor(srcCanvas, rShift, gShift, bShift, brightness) {
+  const w = srcCanvas.width, h = srcCanvas.height;
+  const srcCtx = srcCanvas.getContext('2d');
+  const id = srcCtx.getImageData(0, 0, w, h);
+  const d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i]     = Math.min(255, Math.max(0, Math.round((d[i]     + rShift) * brightness)));
+    d[i + 1] = Math.min(255, Math.max(0, Math.round((d[i + 1] + gShift) * brightness)));
+    d[i + 2] = Math.min(255, Math.max(0, Math.round((d[i + 2] + bShift) * brightness)));
+  }
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  out.getContext('2d').putImageData(id, 0, 0);
+  return out;
+}
+
+// Build a feathered mask canvas — white-filled rect with a blur(featherPx)
+// falloff at the edges. Mirrors src/ai/compositeInfill.ts buildFeatherMask.
+function inpBuildFeatherMask(region, featherPx) {
+  const c = document.createElement('canvas');
+  c.width = INP_W; c.height = INP_H;
+  const ctx = c.getContext('2d');
+  const f = Math.max(0, Math.min(64, featherPx | 0));
+  if (f === 0) {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(region.x, region.y, region.w, region.h);
+    return c;
+  }
+  ctx.filter = `blur(${f}px)`;
+  ctx.fillStyle = '#fff';
+  const inset = Math.min(Math.ceil(f / 2), Math.floor(Math.min(region.w, region.h) / 6));
+  ctx.fillRect(region.x + inset, region.y + inset, Math.max(0, region.w - inset * 2), Math.max(0, region.h - inset * 2));
+  ctx.filter = 'none';
+  return c;
+}
+
+// Mirror of src/ai/compositeInfill.ts applyEdgeRing.
+// Re-composites original (beforeData) pixels through a ring-shaped mask at the
+// selection boundary so the absolute edge matches the source image.
+function inpApplyEdgeRing(targetCanvas, beforeImageData, region, seamWidth) {
+  const sw = Math.max(1, Math.min(seamWidth, Math.floor(Math.min(region.w, region.h) / 4)));
+
+  const ring = document.createElement('canvas');
+  ring.width = INP_W; ring.height = INP_H;
+  const rctx = ring.getContext('2d');
+  rctx.fillStyle = '#fff';
+  rctx.fillRect(region.x, region.y, region.w, region.h);
+  rctx.globalCompositeOperation = 'destination-out';
+  rctx.filter = `blur(${sw}px)`;
+  rctx.fillRect(region.x + sw, region.y + sw, Math.max(0, region.w - sw * 2), Math.max(0, region.h - sw * 2));
+  rctx.filter = 'none';
+  rctx.globalCompositeOperation = 'source-over';
+
+  const beforeCanvas = document.createElement('canvas');
+  beforeCanvas.width = INP_W; beforeCanvas.height = INP_H;
+  beforeCanvas.getContext('2d').putImageData(beforeImageData, 0, 0);
+
+  const maskedBefore = document.createElement('canvas');
+  maskedBefore.width = INP_W; maskedBefore.height = INP_H;
+  const mbctx = maskedBefore.getContext('2d');
+  mbctx.drawImage(ring, 0, 0);
+  mbctx.globalCompositeOperation = 'source-in';
+  mbctx.drawImage(beforeCanvas, 0, 0);
+
+  targetCanvas.getContext('2d').drawImage(maskedBefore, 0, 0);
+}
+
+function inpComposeIntoTile(tileCanvas, patch) {
+  const ctx = tileCanvas.getContext('2d');
+  tileCanvas.width = INP_W;
+  tileCanvas.height = INP_H;
+  // Base.
+  ctx.drawImage(inpBase, 0, 0);
+  // Capture base state as "before" for seam-heal ring overlay.
+  const beforeData = ctx.getImageData(0, 0, INP_W, INP_H);
+
+  const feather = Number(inpFeather.value) || 0;
+  const mask = inpBuildFeatherMask(inpRegion, feather);
+
+  // Place the patch on a full-size canvas at its position.
+  const placed = document.createElement('canvas');
+  placed.width = INP_W; placed.height = INP_H;
+  placed.getContext('2d').drawImage(patch, inpRegion.x, inpRegion.y);
+
+  // Mask the placed patch through the feathered mask.
+  const masked = document.createElement('canvas');
+  masked.width = INP_W; masked.height = INP_H;
+  const mctx = masked.getContext('2d');
+  mctx.drawImage(mask, 0, 0);
+  mctx.globalCompositeOperation = 'source-in';
+  mctx.drawImage(placed, 0, 0);
+  mctx.globalCompositeOperation = 'source-over';
+
+  // Punch a soft hole in the base, then paste the masked patch.
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.drawImage(mask, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(masked, 0, 0);
+  ctx.restore();
+
+  // Seam-heal: re-composite original base pixels at the boundary ring so the
+  // absolute edge matches the source, smoothing any remaining color discontinuity.
+  const seamWidth = Math.max(1, Math.ceil(feather / 2));
+  inpApplyEdgeRing(tileCanvas, beforeData, inpRegion, seamWidth);
+
+  // Faint rect outline so users can see where the patch lives.
+  ctx.save();
+  ctx.strokeStyle = 'rgba(176,140,255,0.65)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.strokeRect(inpRegion.x + 0.5, inpRegion.y + 0.5, inpRegion.w - 1, inpRegion.h - 1);
+  ctx.restore();
+}
+
+// ── /ai/health probe — surfaces which provider will answer /ai/generate ──
+const inpProviderPill = document.getElementById('inp-provider-pill');
+let inpProviderName = null;
+async function inpProbeProvider() {
+  try {
+    const r = await fetch('/ai/health', { method: 'GET' });
+    if (!r.ok) throw new Error('health ' + r.status);
+    const j = await r.json();
+    inpProviderName = j?.imageProvider?.name ?? 'unknown';
+    inpProviderPill.textContent = 'provider · ' + inpProviderName;
+    inpProviderPill.className = 'pill ' + (inpProviderName === 'mock' ? 'warn' : 'ok');
+    inpProviderPill.title = inpProviderName === 'mock'
+      ? 'Server is up but using the mock provider (splotches). Set IMAGE_MODEL_PROVIDER=gemini-canvas (or openai/cursor-canvas) in server/.env for real AI output.'
+      : 'Real model — output quality depends on this provider';
+  } catch (e) {
+    inpProviderName = null;
+    inpProviderPill.textContent = 'server · unreachable';
+    inpProviderPill.className = 'pill warn';
+    inpProviderPill.title = 'Start the server with `npm run dev:server`. Demo will use a client-side fallback for now.';
+  }
+}
+inpProbeProvider();
+
+function inpLoadImage(b64) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('image decode failed'));
+    img.src = 'data:image/png;base64,' + b64;
+  });
+}
+
+// Bound the /ai/generate call. gemini-canvas measured ~33s for a 160×120 patch
+// at gemini-2.5-pro, so 90s gives ample headroom while still recovering the UI
+// if the server hangs. The AbortController also lets the Cancel button bail.
+const INP_FETCH_TIMEOUT_MS = 90_000;
+let inpAbort = null;
+
+function inpCanvasToBase64(canvas) {
+  return canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+}
+
+function inpBuildMaskBase64(region) {
+  const c = document.createElement('canvas');
+  c.width = INP_W; c.height = INP_H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(region.x, region.y, region.w, region.h);
+  return inpCanvasToBase64(c);
+}
+
+async function inpCallGenerate(prompt, region) {
+  const body = {
+    prompt,
+    width: INP_W,
+    height: INP_H,
+    variations: 4,
+    mode: 'inpaint',
+    style: 'none',
+    sourcePngBase64: inpCanvasToBase64(inpBase),
+    maskPngBase64: inpBuildMaskBase64(region),
+    maskBoundsPx: { x: region.x, y: region.y, w: region.w, h: region.h },
+  };
+  inpAbort = new AbortController();
+  const t = setTimeout(() => inpAbort?.abort(new Error('timeout')), INP_FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch('/ai/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: inpAbort.signal,
+    });
+    if (!r.ok) {
+      let msg = `HTTP ${r.status}`;
+      try { const j = await r.json(); msg = j?.message || j?.error || msg; } catch { /* not json */ }
+      throw new Error(msg);
+    }
+    const json = await r.json();
+    if (!json?.variationsBase64?.length) throw new Error('no variations returned');
+    return json;
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error(`aborted after ${INP_FETCH_TIMEOUT_MS / 1000}s — server too slow or hung`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(t);
+    inpAbort = null;
+  }
+}
+
+// Decode each variation PNG into a canvas sized to `region` (may differ from
+// the server's response when we bumped to the 64-px floor).
+async function inpPatchesFromResponse(variationsBase64, region) {
+  const patches = [];
+  for (const b64 of variationsBase64) {
+    const img = await inpLoadImage(b64);
+    const c = document.createElement('canvas');
+    c.width = region.w; c.height = region.h;
+    // Server returns a full INP_W×INP_H image with the fill in the mask bounds
+    // and transparent pixels outside. Crop to the region rect.
+    c.getContext('2d').drawImage(img, region.x, region.y, region.w, region.h, 0, 0, region.w, region.h);
+    patches.push(c);
+  }
+  return patches;
+}
+
+function inpFallbackPatches(prompt, region) {
+  const base = document.createElement('canvas');
+  base.width = region.w; base.height = region.h;
+  inpRenderFill(base.getContext('2d'), region.w, region.h, prompt);
+  return VARIATION_SHIFTS.map(([r, g, b, br]) => inpRecolor(base, r, g, b, br));
+}
+
+const inpRunBtn = document.getElementById('inp-run');
+let inpRunning = false;
+
+function inpSetRunButton(mode) {
+  if (mode === 'running') {
+    inpRunBtn.textContent = 'Cancel';
+    inpRunBtn.classList.remove('btn-primary');
+    inpRunBtn.classList.add('btn-ghost');
+    inpRunBtn.disabled = false;
+  } else {
+    inpRunBtn.textContent = 'Inpaint ↵';
+    inpRunBtn.classList.remove('btn-ghost');
+    inpRunBtn.classList.add('btn-primary');
+    inpRunBtn.disabled = false;
+  }
+}
+
+inpRunBtn.addEventListener('click', async () => {
+  // Mid-run click = cancel
+  if (inpRunning) {
+    if (inpAbort) inpAbort.abort();
+    return;
+  }
+  if (!inpRegion) { inpSetStatus('draw a region on the canvas first', 'err'); return; }
+  const prompt = inpPromptInput.value.trim();
+  if (!prompt) { inpSetStatus('type a prompt first', 'err'); return; }
+
+  // Snapshot the region + sampled context so a Clear / new drag mid-flight
+  // can't crash compose, and so the fill renders against the boundary that
+  // existed when the user asked.
+  const region = { ...inpRegion };
+  inpContextCache = inpDescribeContext(region);
+  const providerLabel = inpProviderName ?? 'server';
+  inpRunning = true;
+  inpSetRunButton('running');
+  inpResetCommit();
+
+  let patches = null;
+  try {
+    inpSetStatus(`${providerLabel}: requesting ${region.w}×${region.h} patch · prompt "${prompt}"… (click Cancel to abort)`);
+    const t0 = performance.now();
+    try {
+      const json = await inpCallGenerate(prompt, region);
+      const ms = Math.round(performance.now() - t0);
+      inpSetStatus(`decoding ${json.variationsBase64.length} variations from ${providerLabel} (${ms}ms)…`);
+      // Server returns full INP_W×INP_H images (padded outside the mask with
+      // transparent pixels). Crop each to the region rect for compositing.
+      patches = await inpPatchesFromResponse(json.variationsBase64, region);
+      inpSetStatus(`✓ ${providerLabel} returned 4 variations for ${region.w}×${region.h} (${ms}ms) · click one to commit`, 'ok');
+    } catch (err) {
+      inpSetStatus(`⚠ /ai/generate failed (${err.message}) — using client-side procedural fallback`, 'err');
+      patches = inpFallbackPatches(prompt, region);
+    }
+
+    // If the user cleared the selection mid-flight, drop the result.
+    if (!inpRegion) {
+      inpSetStatus('region was cleared during request — discarded result', 'err');
+      return;
+    }
+    inpPatches = patches;
+    inpVars.forEach((tile, i) => {
+      const c = tile.querySelector('canvas');
+      inpComposeIntoTile(c, inpPatches[i]);
+    });
+    inpVariationsReady = true;
+  } catch (err) {
+    inpSetStatus('⚠ unexpected error: ' + err.message, 'err');
+  } finally {
+    inpRunning = false;
+    inpSetRunButton('idle');
+  }
+});
+
+inpVars.forEach((tile, i) => {
+  tile.addEventListener('click', () => {
+    if (!inpVariationsReady || !inpPatches) return;
+    inpVars.forEach(v => { v.classList.remove('committed'); v.querySelector('.badge')?.remove(); });
+    tile.classList.add('committed');
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = '✓ committed';
+    tile.appendChild(badge);
+    // Apply chosen patch onto base via the feathered composite + seam-heal ring.
+    const baseCtx = inpBase.getContext('2d');
+    const feather = Number(inpFeather.value) || 0;
+    // Capture base before-state for seam-heal ring overlay.
+    const commitBefore = baseCtx.getImageData(0, 0, INP_W, INP_H);
+    const mask = inpBuildFeatherMask(inpRegion, feather);
+    const placed = document.createElement('canvas');
+    placed.width = INP_W; placed.height = INP_H;
+    placed.getContext('2d').drawImage(inpPatches[i], inpRegion.x, inpRegion.y);
+    const masked = document.createElement('canvas');
+    masked.width = INP_W; masked.height = INP_H;
+    const mctx = masked.getContext('2d');
+    mctx.drawImage(mask, 0, 0);
+    mctx.globalCompositeOperation = 'source-in';
+    mctx.drawImage(placed, 0, 0);
+    baseCtx.save();
+    baseCtx.globalCompositeOperation = 'destination-out';
+    baseCtx.drawImage(mask, 0, 0);
+    baseCtx.globalCompositeOperation = 'source-over';
+    baseCtx.drawImage(masked, 0, 0);
+    baseCtx.restore();
+    // Seam-heal ring overlay on the committed base.
+    inpApplyEdgeRing(inpBase, commitBefore, inpRegion, Math.max(1, Math.ceil(feather / 2)));
+    inpCommitStatus.textContent = `✓ Variation ${i + 1} committed onto base (feather ${feather}px) · draw another region to keep editing`;
+    inpCommitStatus.className = 'status-line ok';
+    inpVariationsReady = false;
+    inpPatches = null;
+    inpRegion = null;
+    inpClearOverlay();
+    inpUpdateRegionUI();
+  });
+});
+
+inpUpdateRegionUI();
+</script>
+
+</body>
+</html>

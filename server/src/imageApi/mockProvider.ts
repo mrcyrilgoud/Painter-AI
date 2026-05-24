@@ -1,5 +1,6 @@
 import { PNG } from "pngjs";
-import type { ImageGenRequest, ImageGenResult, ImageProvider } from "./types.js";
+import type { ImageGenRequest, ImageGenResult, ImageProvider, ImageProviderGenerateOptions } from "./types.js";
+import { decodeBase64Png, maskBoundsFromPixels } from "./pngUtils.js";
 
 const STYLE_PALETTES: Record<string, [number, number, number][]> = {
   none: [[160, 192, 224], [224, 192, 160], [192, 224, 160], [224, 160, 192]],
@@ -18,12 +19,9 @@ function seededRandom(seed: number) {
   };
 }
 
-function decodePng(b64: string): { width: number; height: number; data: Buffer } | null {
+function decodePngSafe(b64: string): { width: number; height: number; data: Buffer } | null {
   try {
-    const raw = b64.replace(/^data:[^;]+;base64,/, "");
-    const buf = Buffer.from(raw, "base64");
-    const png = PNG.sync.read(buf);
-    return { width: png.width, height: png.height, data: png.data };
+    return decodeBase64Png(b64);
   } catch {
     return null;
   }
@@ -35,6 +33,13 @@ function encodePng(width: number, height: number, data: Buffer): string {
   return PNG.sync.write(png).toString("base64");
 }
 
+interface MaskBounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 function paintVariation(
   width: number,
   height: number,
@@ -42,10 +47,10 @@ function paintVariation(
   seed: number,
   source: { data: Buffer } | null,
   mask: { data: Buffer } | null,
+  bbox: MaskBounds,
 ): Buffer {
   const rand = seededRandom(seed);
   const out = Buffer.alloc(width * height * 4);
-  // Start from source (or white) and then paint splotches inside the mask region.
   for (let i = 0; i < out.length; i += 4) {
     if (source) {
       out[i] = source.data[i];
@@ -59,36 +64,7 @@ function paintVariation(
       out[i + 3] = 255;
     }
   }
-  // Determine bbox
-  let x0 = 0,
-    y0 = 0,
-    w = width,
-    h = height;
-  if (mask) {
-    let minX = width,
-      minY = height,
-      maxX = 0,
-      maxY = 0,
-      any = false;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (mask.data[(y * width + x) * 4] > 128) {
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-          any = true;
-        }
-      }
-    }
-    if (any) {
-      x0 = minX;
-      y0 = minY;
-      w = maxX - minX;
-      h = maxY - minY;
-    }
-  }
-  // Paint splotches
+  const { x: x0, y: y0, w, h } = bbox;
   const splotches = 220 + Math.floor(rand() * 120);
   for (let s = 0; s < splotches; s++) {
     const cx = x0 + rand() * w;
@@ -124,20 +100,30 @@ export const mockProvider: ImageProvider = {
   isReady() {
     return { ready: true };
   },
-  async generate(req: ImageGenRequest): Promise<ImageGenResult> {
+  async generate(
+    req: ImageGenRequest,
+    _options?: ImageProviderGenerateOptions,
+  ): Promise<ImageGenResult> {
     const palette = STYLE_PALETTES[req.style ?? "none"] ?? STYLE_PALETTES.none;
     const baseSeed = req.seed ?? Math.floor(Math.random() * 1_000_000);
-    const source = req.sourcePngBase64 ? decodePng(req.sourcePngBase64) : null;
-    const mask = req.maskPngBase64 ? decodePng(req.maskPngBase64) : null;
+    const source = req.sourcePngBase64 ? decodePngSafe(req.sourcePngBase64) : null;
+    const mask = req.maskPngBase64 ? decodePngSafe(req.maskPngBase64) : null;
+    const bbox =
+      (mask && maskBoundsFromPixels(mask.data, req.width, req.height)) ?? {
+        x: 0,
+        y: 0,
+        w: req.width,
+        h: req.height,
+      };
     const variationsBase64: string[] = [];
     const seeds: number[] = [];
     const count = Math.max(1, Math.min(req.variations, 8));
     for (let i = 0; i < count; i++) {
       const seed = baseSeed + i * 7919;
-      const buf = paintVariation(req.width, req.height, palette, seed, source, mask);
+      const buf = paintVariation(req.width, req.height, palette, seed, source, mask, bbox);
       variationsBase64.push(encodePng(req.width, req.height, buf));
       seeds.push(seed);
     }
-    return { variationsBase64, seeds };
+    return { variationsBase64, seeds, outputKind: "full-canvas" };
   },
 };

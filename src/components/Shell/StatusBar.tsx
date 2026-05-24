@@ -3,7 +3,9 @@ import { useUIStore } from "../../state/uiStore";
 import styles from "./StatusBar.module.css";
 
 export function StatusBar() {
-  const { statusText, dimensions, zoom } = useEditorStore();
+  const statusText = useEditorStore((s) => s.statusText);
+  const dimensions = useEditorStore((s) => s.dimensions);
+  const zoom = useEditorStore((s) => s.zoom);
   const openCommandBar = useUIStore((s) => s.openCommandBar);
   return (
     <footer className={styles.bar}>

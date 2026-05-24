@@ -14,6 +14,8 @@ export const STYLE_PRESETS: StylePreset[] = [
   { id: "pixel", label: "Pixel Art", thumb: "#70c060", palette: ["#70c060", "#f0e030", "#e04040", "#4070f0"] },
 ];
 
+export type StyleId = (typeof STYLE_PRESETS)[number]["id"];
+
 export function getStyle(id: string) {
   return STYLE_PRESETS.find((s) => s.id === id) ?? STYLE_PRESETS[0];
 }

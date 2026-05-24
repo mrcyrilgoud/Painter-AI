@@ -1,8 +1,8 @@
-import type { Segmenter, SegmentRequest, SegmentResult } from "../types";
-import { codexClient, base64PngToImageBitmap } from "./client";
-import { bitmapToBase64Png } from "./contextSerializer";
+import type { Segmenter, SegmentRequest, SegmentResult } from "./types";
+import { codexClient, base64PngToImageBitmap } from "./codex/client";
+import { bitmapToBase64Png } from "./codex/contextSerializer";
 
-export const codexSegmenter: Segmenter = {
+export const serverSegmenter: Segmenter = {
   async segment(req: SegmentRequest): Promise<SegmentResult> {
     const sourcePngBase64 = await bitmapToBase64Png(req.source);
     const body = {

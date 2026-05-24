@@ -1,5 +1,6 @@
 import type { ToolId } from "../../../state/editorStore";
 import type { ToolHandler } from "./types";
+import { pointerTool } from "./pointer";
 import { pencilTool } from "./pencil";
 import { brushTool } from "./brush";
 import { eraserTool } from "./eraser";
@@ -19,6 +20,7 @@ const noop: ToolHandler = {
 };
 
 const handlers: Record<ToolId, ToolHandler> = {
+  pointer: pointerTool,
   pencil: pencilTool,
   brush: brushTool,
   eraser: eraserTool,

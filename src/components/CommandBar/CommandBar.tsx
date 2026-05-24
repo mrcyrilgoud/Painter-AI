@@ -3,10 +3,9 @@ import { useUIStore } from "../../state/uiStore";
 import { useEditorStore } from "../../state/editorStore";
 import { useChatStore } from "../../state/chatStore";
 import { inferModeFromContext, MODE_LABELS } from "../../ai/contextInference";
-import { compositeBitmap, selectionToMask } from "../../utils/composite";
-import { runOp } from "../../ai/runOp";
+import { compositeBitmap, selectionToMask, selectionToMaskBoundsPx } from "../../utils/composite";
+import { buildGenerateRequest, runOp } from "../../ai/runOp";
 import { OpProposalCard } from "../AIPanel/OpProposalCard";
-import type { AIGenerateRequest } from "../../ai/types";
 import styles from "./CommandBar.module.css";
 
 export function CommandBar() {
@@ -16,7 +15,6 @@ export function CommandBar() {
 
   const selection = useEditorStore((s) => s.selection);
   const dimensions = useEditorStore((s) => s.dimensions);
-  const referenceCount = useEditorStore((s) => s.references.length);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
@@ -51,7 +49,7 @@ export function CommandBar() {
     }
   }, [open]);
 
-  const mode = inferModeFromContext({ selection, hasReferences: referenceCount > 0 });
+  const mode = inferModeFromContext({ selection });
   const chatPreviewId = useChatStore((s) =>
     opId ? s.messages.find((m) => m.id === opId) : null,
   );
@@ -64,18 +62,16 @@ export function CommandBar() {
       const editor = useEditorStore.getState();
       const source = await compositeBitmap(editor.layers, editor.dimensions);
       const mask = await selectionToMask(editor.selection, editor.dimensions);
-      const request: AIGenerateRequest = {
+      const request = buildGenerateRequest({
         mode,
         source,
         mask,
+        maskBoundsPx:
+          mode === "inpaint" && editor.selection
+            ? selectionToMaskBoundsPx(editor.selection, editor.dimensions)
+            : undefined,
         prompt,
-        references: editor.references,
-        style: "none",
-        cfgScale: 7,
-        steps: 20,
-        variations: 4,
-        dimensions: editor.dimensions,
-      };
+      });
       const chat = useChatStore.getState();
       const id = chat.appendOpProposal({
         role: "assistant",

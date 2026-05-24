@@ -110,7 +110,7 @@ function useMenus(): Record<string, MenuItem[]> {
     ],
     AI: [
       { label: "Open Cmd+K", action: openCommandBar },
-      { label: "Backend Settings…", action: () => alert("Codex backend settings ship in phase 5b.") },
+      { label: "Backend Settings…", action: () => useUIStore.getState().setAiPanelTab("settings") },
     ],
     Help: [
       { label: "Keyboard Shortcuts", action: () => alert(KEYBOARD_HELP) },

@@ -1,5 +1,6 @@
 import { Agent } from "@cursor/sdk";
 import { config } from "../config.js";
+import { abortError } from "../abort.js";
 
 const CURSOR_TIMEOUT_MS = 120_000;
 
@@ -9,6 +10,7 @@ export interface RunCursorOptions {
   /** Override the configured model id (e.g. "composer-latest", "auto"). */
   model?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 /**
@@ -18,6 +20,10 @@ export interface RunCursorOptions {
 export async function runCursorCollectText(opts: RunCursorOptions): Promise<string> {
   if (!config.cursorApiKey) {
     throw new Error("CURSOR_API_KEY is not set");
+  }
+
+  if (opts.signal?.aborted) {
+    throw abortError();
   }
 
   const fullPrompt = opts.systemPrompt
@@ -33,17 +39,29 @@ export async function runCursorCollectText(opts: RunCursorOptions): Promise<stri
     );
   });
 
+  let abortPromise: Promise<never> | null = null;
+  let onAbort: (() => void) | null = null;
+  if (opts.signal) {
+    abortPromise = new Promise<never>((_, reject) => {
+      onAbort = () => reject(abortError());
+      opts.signal!.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+
   let result: Awaited<ReturnType<typeof Agent.prompt>>;
   try {
-    result = await Promise.race([
+    const racers: Promise<unknown>[] = [
       Agent.prompt(fullPrompt, {
         apiKey: config.cursorApiKey,
         model: { id: opts.model ?? config.cursorModel },
       }),
       timeoutPromise,
-    ]);
+    ];
+    if (abortPromise) racers.push(abortPromise);
+    result = (await Promise.race(racers)) as Awaited<ReturnType<typeof Agent.prompt>>;
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
+    if (opts.signal && onAbort) opts.signal.removeEventListener("abort", onAbort);
   }
 
   if (result.status !== "finished") {

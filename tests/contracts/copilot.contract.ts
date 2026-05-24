@@ -16,7 +16,6 @@ async function makeContext(): Promise<CanvasContext> {
     source: await makeBlankBitmap(w, h),
     layers: [{ id: "l0", name: "Background", visible: true, isAI: false }],
     activeLayerId: "l0",
-    references: [],
     recentOps: [],
     dimensions: { width: w, height: h },
   };

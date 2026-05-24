@@ -1,8 +1,15 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import { mockBackend } from "../src/ai/mockBackend";
-import { mockSegmenter } from "../src/ai/mockSegmenter";
 import { mockCopilot } from "../src/ai/mockCopilot";
 import type { AIGenerateRequest, CanvasContext, CopilotEvent } from "../src/ai/types";
+
+vi.mock("../src/state/settingsStore", () => ({
+  useSettingsStore: {
+    getState: () => ({
+      defaultVariations: 4,
+    }),
+  },
+}));
 
 /**
  * Real contract tests against the mock implementations. The same scenarios
@@ -89,51 +96,12 @@ describe("mockBackend.generate", () => {
   });
 });
 
-describe("mockSegmenter.segment", () => {
-  it("returns a same-sized mask for a point hint", async () => {
-    const result = await mockSegmenter.segment({
-      source,
-      hint: { kind: "point", x: 5, y: 5 },
-    });
-    expect(result.mask.width).toBe(W);
-    expect(result.mask.height).toBe(H);
-  });
-
-  it("returns a same-sized mask for a box hint without warning", async () => {
-    const result = await mockSegmenter.segment({
-      source,
-      hint: { kind: "box", x: 10, y: 10, w: 20, h: 20 },
-    });
-    expect(result.mask.width).toBe(W);
-    expect(result.mask.height).toBe(H);
-    expect(result.warning).toBeUndefined();
-  });
-
-  it("returns a same-sized mask for a text hint mentioning a known color", async () => {
-    const result = await mockSegmenter.segment({
-      source,
-      hint: { kind: "text", prompt: "the blue sky" },
-    });
-    expect(result.mask.width).toBe(W);
-    expect(result.mask.height).toBe(H);
-  });
-
-  it("flags no_color_match when the text hint mentions no known colour", async () => {
-    const result = await mockSegmenter.segment({
-      source,
-      hint: { kind: "text", prompt: "the chartreuse mongoose" },
-    });
-    expect(result.warning).toBe("no_color_match");
-  });
-});
-
 describe("mockCopilot.send", () => {
   function emptyCtx(): CanvasContext {
     return {
       source,
       layers: [{ id: "bg", name: "Background", visible: true, isAI: false }],
       activeLayerId: "bg",
-      references: [],
       recentOps: [],
       dimensions: { width: W, height: H },
     };

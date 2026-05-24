@@ -1,4 +1,5 @@
 import type { CanvasContext, Copilot, CopilotEvent, AIGenerateRequest, AIMode } from "./types";
+import { useSettingsStore } from "../state/settingsStore";
 
 const CANNED_REPLIES = [
   "That's an interesting question — the composition feels balanced overall, but the focal point could be stronger.",
@@ -52,17 +53,17 @@ export const mockCopilot: Copilot = {
     }
     const mode = inferMode(userMessage, ctx);
     const style = inferStyle(userMessage);
+    const settings = useSettingsStore.getState();
     yield* generateText(`Trying a few options — ${mode === "inpaint" ? "inpainting the selection" : mode === "outpaint" ? "extending the canvas" : "as a new layer"}.`);
     const req: AIGenerateRequest = {
       mode,
       source: ctx.source,
       mask: ctx.selection,
       prompt: userMessage,
-      references: ctx.references,
-      style,
+      style: style as AIGenerateRequest["style"],
       cfgScale: 7,
       steps: 20,
-      variations: 4,
+      variations: settings.defaultVariations,
       dimensions: ctx.dimensions,
     };
     yield {

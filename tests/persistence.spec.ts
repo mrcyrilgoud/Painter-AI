@@ -1,33 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// jsdom in this project doesn't expose a full Web Storage API on `localStorage`.
-// Install a tiny in-memory shim before any persistence code runs.
-class MemoryStorage {
-  private store = new Map<string, string>();
-  get length(): number {
-    return this.store.size;
-  }
-  clear(): void {
-    this.store.clear();
-  }
-  getItem(key: string): string | null {
-    return this.store.has(key) ? this.store.get(key)! : null;
-  }
-  setItem(key: string, value: string): void {
-    this.store.set(key, String(value));
-  }
-  removeItem(key: string): void {
-    this.store.delete(key);
-  }
-  key(i: number): string | null {
-    return [...this.store.keys()][i] ?? null;
-  }
-}
-Object.defineProperty(globalThis, "localStorage", {
-  value: new MemoryStorage(),
-  writable: true,
-});
-
 // jsdom can't decode a PNG dataURL into a real image. For our deserialize path
 // we only need a CanvasImageSource that drawImage() will accept — an empty
 // canvas of the right shape is enough to round-trip metadata. Override the
@@ -42,6 +14,7 @@ Object.defineProperty(globalThis, "localStorage", {
 }) as typeof createImageBitmap;
 
 import { useEditorStore } from "../src/state/editorStore";
+import { useSettingsStore } from "../src/state/settingsStore";
 import {
   serializeProject,
   deserializeProject,
@@ -66,12 +39,13 @@ function paintRedDotOnActiveLayer() {
 describe("persistence — serialize/deserialize round-trip", () => {
   beforeEach(() => {
     useEditorStore.getState().resetProject("sq-512", "RoundTripProject");
+    useSettingsStore.setState({ autonomy: "propose" });
     localStorage.clear();
   });
 
   it("preserves project name, dimensions, autonomy, and layer metadata", async () => {
     const s = useEditorStore.getState();
-    s.setAIAutonomy("auto-confident");
+    useSettingsStore.getState().setAutonomy("auto-confident");
     s.addLayer("Sky");
     s.addLayer("Tree");
     paintRedDotOnActiveLayer();
@@ -87,7 +61,7 @@ describe("persistence — serialize/deserialize round-trip", () => {
     expect(restored.projectName).toBe("RoundTripProject");
     expect(restored.dimensions.preset).toBe("sq-512");
     expect(restored.dimensions.width).toBe(512);
-    expect(restored.aiAutonomy).toBe("auto-confident");
+    expect(useSettingsStore.getState().autonomy).toBe("auto-confident");
     expect(restored.layers.map((l) => l.name)).toEqual(["Background", "Sky", "Tree"]);
   });
 

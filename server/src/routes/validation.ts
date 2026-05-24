@@ -16,6 +16,8 @@ const requiredBase64Image = z.string().max(MAX_BASE64_BYTES, "image data too lar
 
 const dimension = z.number().int().min(MIN_DIM).max(MAX_DIM);
 
+const ProviderId = z.enum(["mock", "openai", "codex-canvas", "cursor-canvas", "gemini-canvas"]);
+
 export const generateSchema = z.object({
   prompt: z.string().min(1).max(MAX_PROMPT),
   style: z.string().max(64).optional(),
@@ -28,16 +30,16 @@ export const generateSchema = z.object({
     .default("newLayer"),
   sourcePngBase64: base64Image,
   maskPngBase64: base64Image,
-  references: z
-    .array(
-      z.object({
-        pngBase64: requiredBase64Image,
-        role: z.string().max(64).optional(),
-        weight: z.number().min(0).max(1).optional(),
-      }),
-    )
-    .max(8)
+  maskBoundsPx: z
+    .object({
+      x: z.number().min(0),
+      y: z.number().min(0),
+      w: z.number().min(1),
+      h: z.number().min(1),
+    })
     .optional(),
+  providerOverride: ProviderId.nullish(),
+  modelOverride: z.string().max(120).nullish(),
 });
 
 export const segmentSchema = z.object({
@@ -83,9 +85,6 @@ export const chatSchema = z.object({
         }),
       )
       .max(256),
-    references: z
-      .array(z.object({ role: z.string(), weight: z.number() }))
-      .max(16),
     recentOps: z
       .array(
         z.object({

@@ -1,7 +1,9 @@
 import type { Copilot, CanvasContext, CopilotEvent, AIGenerateRequest } from "../types";
 import { codexClient } from "./client";
 import { serializeChatContext } from "./contextSerializer";
+import { selectionToMaskBoundsPx } from "../../utils/composite";
 import { useEditorStore } from "../../state/editorStore";
+import { useSettingsStore } from "../../state/settingsStore";
 
 interface ServerEvent {
   kind: "text" | "op-proposal" | "done";
@@ -28,19 +30,22 @@ export const codexCopilot: Copilot = {
       if (evt.kind === "text" && typeof evt.text === "string") {
         yield { kind: "text", text: evt.text };
       } else if (evt.kind === "op-proposal" && evt.request) {
-        // The server gives us the mode/prompt/style/confidence; we fill in the
-        // rest of the AIGenerateRequest from current editor state so the client
-        // can dispatch it through runOp like any other op-proposal.
+        const maskBoundsPx =
+          evt.request.mode === "inpaint" && sel
+            ? selectionToMaskBoundsPx(sel, ctx.dimensions)
+            : undefined;
+
+        const settings = useSettingsStore.getState();
         const fullReq: AIGenerateRequest = {
           mode: evt.request.mode,
           source: ctx.source,
           mask: ctx.selection,
+          maskBoundsPx,
           prompt: evt.request.prompt,
-          references: ctx.references,
-          style: evt.request.style,
+          style: evt.request.style as AIGenerateRequest["style"],
           cfgScale: 7,
           steps: 20,
-          variations: 4,
+          variations: settings.defaultVariations,
           dimensions: ctx.dimensions,
         };
         yield {

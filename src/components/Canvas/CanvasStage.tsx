@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useEditorStore } from "../../state/editorStore";
+import { useUIStore } from "../../state/uiStore";
 import { getToolHandler } from "./tools";
 import type { ToolPoint } from "./tools/types";
 import { SelectionOverlay } from "./SelectionOverlay";
@@ -213,6 +214,9 @@ export function CanvasStage() {
         useEditorStore.getState().setBrushSize(Math.max(1, useEditorStore.getState().brushSize - 1));
       } else if (e.key === "]") {
         useEditorStore.getState().setBrushSize(Math.min(64, useEditorStore.getState().brushSize + 1));
+      } else if (e.key === "Escape" && !useUIStore.getState().commandBarOpen) {
+        e.preventDefault();
+        useEditorStore.getState().exitSelectionMode();
       }
     };
     window.addEventListener("keydown", onKey);

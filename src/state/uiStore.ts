@@ -1,10 +1,14 @@
 import { create } from "zustand";
 
+export type AIPanelTab = "chat" | "settings";
+
 interface UIState {
   commandBarOpen: boolean;
   openCommandBar: () => void;
   closeCommandBar: () => void;
   toggleCommandBar: () => void;
+  aiPanelTab: AIPanelTab;
+  setAiPanelTab: (tab: AIPanelTab) => void;
 }
 
 const createUI = () =>
@@ -13,6 +17,8 @@ const createUI = () =>
     openCommandBar: () => set({ commandBarOpen: true }),
     closeCommandBar: () => set({ commandBarOpen: false }),
     toggleCommandBar: () => set((s) => ({ commandBarOpen: !s.commandBarOpen })),
+    aiPanelTab: "chat",
+    setAiPanelTab: (aiPanelTab) => set({ aiPanelTab }),
   }));
 
 type Store = ReturnType<typeof createUI>;

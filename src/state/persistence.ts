@@ -1,4 +1,6 @@
 import { useEditorStore, type Layer, type CanvasPreset, PRESET_DIMS } from "./editorStore";
+import { useSettingsStore } from "./settingsStore";
+import type { AIAutonomy } from "../ai/types";
 import { canvasToDataURL, dataUrlToImageBitmap } from "../utils/download";
 import { newLayerCanvas } from "../utils/canvas";
 import { compositeLayers } from "../utils/composite";
@@ -20,7 +22,7 @@ export interface SerializedProject {
   version: number;
   name: string;
   dimensions: { width: number; height: number; preset: CanvasPreset };
-  aiAutonomy: ReturnType<typeof useEditorStore.getState>["aiAutonomy"];
+  aiAutonomy: AIAutonomy;
   layers: SerializedLayer[];
   activeLayerId: string;
 }
@@ -31,7 +33,7 @@ export function serializeProject(): SerializedProject {
     version: PROJECT_VERSION,
     name: s.projectName,
     dimensions: s.dimensions,
-    aiAutonomy: s.aiAutonomy,
+    aiAutonomy: useSettingsStore.getState().autonomy,
     layers: s.layers.map((l) => ({
       id: l.id,
       name: l.name,
@@ -69,12 +71,12 @@ export async function deserializeProject(project: SerializedProject) {
   useEditorStore.setState({
     projectName: project.name,
     dimensions: project.dimensions,
-    aiAutonomy: project.aiAutonomy,
     layers,
     activeLayerId: project.activeLayerId,
     selection: null,
     previewBitmap: null,
   });
+  useSettingsStore.getState().setAutonomy(project.aiAutonomy);
   useEditorStore.getState().bumpRender();
 }
 
@@ -115,9 +117,13 @@ export function startAutosave() {
       state.renderTick !== prev.renderTick ||
       state.layers !== prev.layers ||
       state.projectName !== prev.projectName ||
-      state.dimensions !== prev.dimensions ||
-      state.aiAutonomy !== prev.aiAutonomy
+      state.dimensions !== prev.dimensions
     ) {
+      scheduleAutosave();
+    }
+  });
+  useSettingsStore.subscribe((state, prev) => {
+    if (state.autonomy !== prev.autonomy) {
       scheduleAutosave();
     }
   });

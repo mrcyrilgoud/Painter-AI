@@ -1,22 +1,11 @@
-import { useState } from "react";
-import { useEditorStore, type AIAutonomy } from "../../state/editorStore";
+import { useUIStore } from "../../state/uiStore";
 import { ChatTab } from "./ChatTab";
-import { HistoryTab } from "./HistoryTab";
-import { ReferencesTab } from "./ReferencesTab";
+import { SettingsTab } from "./SettingsTab";
 import styles from "./AIPanel.module.css";
 
-type Tab = "chat" | "history" | "references";
-
-const AUTONOMY_LABELS: Record<AIAutonomy, string> = {
-  propose: "Propose",
-  "auto-confident": "Auto-confident",
-  agentic: "Agentic",
-};
-
 export function AIPanel() {
-  const [tab, setTab] = useState<Tab>("chat");
-  const { aiAutonomy, setAIAutonomy } = useEditorStore();
-  const [autonomyOpen, setAutonomyOpen] = useState(false);
+  const tab = useUIStore((s) => s.aiPanelTab);
+  const setTab = useUIStore((s) => s.setAiPanelTab);
 
   return (
     <aside className={styles.panel}>
@@ -28,56 +17,13 @@ export function AIPanel() {
           Chat
         </button>
         <button
-          className={`${styles.tab} ${tab === "history" ? styles.active : ""}`}
-          onClick={() => setTab("history")}
+          className={`${styles.tab} ${tab === "settings" ? styles.active : ""}`}
+          onClick={() => setTab("settings")}
         >
-          History
-        </button>
-        <button
-          className={`${styles.tab} ${tab === "references" ? styles.active : ""}`}
-          onClick={() => setTab("references")}
-        >
-          Refs
+          Settings
         </button>
       </div>
-
-      {tab === "chat" && (
-        <>
-          <div className={styles.autonomyRow}>
-            <button
-              className={styles.autonomyChip}
-              onClick={() => setAutonomyOpen((v) => !v)}
-              title="Change copilot autonomy"
-            >
-              <span className={styles.autonomyDot} data-mode={aiAutonomy} />
-              {AUTONOMY_LABELS[aiAutonomy]}
-              <span className={styles.caret}>▾</span>
-            </button>
-            {autonomyOpen && (
-              <div className={styles.autonomyMenu}>
-                {(["propose", "auto-confident", "agentic"] as AIAutonomy[]).map((m) => (
-                  <button
-                    key={m}
-                    className={styles.autonomyOption}
-                    onClick={() => {
-                      setAIAutonomy(m);
-                      setAutonomyOpen(false);
-                    }}
-                  >
-                    <span className={styles.autonomyDot} data-mode={m} />
-                    {AUTONOMY_LABELS[m]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <ChatTab />
-        </>
-      )}
-
-      {tab === "history" && <HistoryTab />}
-      {tab === "references" && <ReferencesTab />}
+      {tab === "chat" ? <ChatTab /> : <SettingsTab />}
     </aside>
   );
 }

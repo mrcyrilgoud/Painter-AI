@@ -63,12 +63,19 @@
   border: 1px solid var(--border-1);
   flex-shrink: 0;
   cursor: pointer;
-  transition: transform 80ms ease;
+  transition: transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .swatch:hover {
   transform: scale(1.15);
   box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+.swatch:focus-visible {
+  outline: none;
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent);
 }
 
 .spacer {

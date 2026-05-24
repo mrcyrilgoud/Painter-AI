@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import { HistoryStack, type HistoryEntry } from "./history";
 import { newLayerCanvas, restore, uid } from "../utils/canvas";
-import type { ReferenceImage } from "../ai/types";
 
 export type ToolId =
+  | "pointer"
   | "select"
   | "smart-select"
   | "pencil"
@@ -23,8 +23,6 @@ export type CanvasPreset =
   | "landscape-1536x1024"
   | "custom";
 
-export type AIAutonomy = "propose" | "auto-confident" | "agentic";
-
 export const PRESET_DIMS: Record<Exclude<CanvasPreset, "custom">, { width: number; height: number }> = {
   "sq-512": { width: 512, height: 512 },
   "sq-1024": { width: 1024, height: 1024 },
@@ -38,7 +36,6 @@ export interface AIProvenance {
   mode: "inpaint" | "outpaint" | "newLayer" | "img2img" | "restyle";
   style: string;
   seed: number;
-  referenceIds: string[];
   maskDataUrl?: string;
 }
 
@@ -98,14 +95,13 @@ export interface EditorState {
 
   selection: Selection | null;
   setSelection: (s: Selection | null) => void;
+  /** Clear marquee selection and return to the neutral pointer tool. */
+  exitSelectionMode: () => void;
 
-  previewBitmap: ImageBitmap | null;
-  setPreviewBitmap: (b: ImageBitmap | null) => void;
-
-  references: ReferenceImage[];
-  addReference: (ref: ReferenceImage) => void;
-  removeReference: (id: string) => void;
-  updateReference: (id: string, patch: Partial<ReferenceImage>) => void;
+  previewBitmap: { image: ImageBitmap; offset?: { x: number; y: number } } | null;
+  setPreviewBitmap: (
+    b: ImageBitmap | { image: ImageBitmap; offset?: { x: number; y: number } } | null,
+  ) => void;
 
   activeTool: ToolId;
   setActiveTool: (tool: ToolId) => void;
@@ -117,9 +113,6 @@ export interface EditorState {
 
   brushSize: number;
   setBrushSize: (size: number) => void;
-
-  aiAutonomy: AIAutonomy;
-  setAIAutonomy: (mode: AIAutonomy) => void;
 
   statusText: string;
   setStatusText: (text: string) => void;
@@ -204,18 +197,11 @@ const createStore = () => create<EditorState>((set, get) => ({
 
   selection: null,
   setSelection: (s) => set({ selection: s }),
+  exitSelectionMode: () => set({ selection: null, activeTool: "pointer" }),
 
   previewBitmap: null,
-  setPreviewBitmap: (b) => set({ previewBitmap: b }),
-
-  references: [],
-  addReference: (ref) => set((s) => ({ references: [...s.references, ref] })),
-  removeReference: (id) =>
-    set((s) => ({ references: s.references.filter((r) => r.id !== id) })),
-  updateReference: (id, patch) =>
-    set((s) => ({
-      references: s.references.map((r) => (r.id === id ? { ...r, ...patch } : r)),
-    })),
+  setPreviewBitmap: (b) =>
+    set({ previewBitmap: b == null ? null : "image" in b ? b : { image: b } }),
 
   activeTool: "brush",
   setActiveTool: (tool) => set({ activeTool: tool }),
@@ -227,9 +213,6 @@ const createStore = () => create<EditorState>((set, get) => ({
 
   brushSize: 6,
   setBrushSize: (size) => set({ brushSize: size }),
-
-  aiAutonomy: "propose",
-  setAIAutonomy: (mode) => set({ aiAutonomy: mode }),
 
   statusText: "Ready",
   setStatusText: (text) => set({ statusText: text }),

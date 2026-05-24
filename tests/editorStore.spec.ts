@@ -78,14 +78,14 @@ describe("editorStore", () => {
     expect(useEditorStore.getState().selection).toBeNull();
   });
 
-  it("setAIAutonomy cycles through the three modes", () => {
+  it("exitSelectionMode clears selection and activates pointer", () => {
     const s = useEditorStore.getState();
-    s.setAIAutonomy("auto-confident");
-    expect(useEditorStore.getState().aiAutonomy).toBe("auto-confident");
-    s.setAIAutonomy("agentic");
-    expect(useEditorStore.getState().aiAutonomy).toBe("agentic");
-    s.setAIAutonomy("propose");
-    expect(useEditorStore.getState().aiAutonomy).toBe("propose");
+    s.setActiveTool("select");
+    s.setSelection({ x: 0, y: 0, w: 32, h: 32 });
+    s.exitSelectionMode();
+    const after = useEditorStore.getState();
+    expect(after.selection).toBeNull();
+    expect(after.activeTool).toBe("pointer");
   });
 
   it("resetProject swaps dimensions to the requested preset", () => {
