@@ -364,7 +364,7 @@
   <span class="brand-mark">✦</span>
   <div>
     <div class="brand-title">PAINTER AI</div>
-    <div class="brand-sub">design &amp; implementation review · v0.1</div>
+    <div class="brand-sub">design &amp; implementation review · v0.2</div>
   </div>
   <div class="right">
     <span class="pill ok" id="theme-tag">light</span>
@@ -426,10 +426,10 @@
       </div>
       <div class="app-mock-body">
         <div class="app-mock-toolbox">
-          <div class="t">▱</div><div class="t">⌖</div><div class="t">✎</div>
-          <div class="t">✒</div><div class="t">▢</div><div class="t">⊙</div>
-          <div class="t">╱</div><div class="t">▭</div><div class="t">◯</div>
-          <div class="t">A</div><div class="t ai">✦</div>
+          <div class="t">↖</div><div class="t">▱</div><div class="t">⌖</div>
+          <div class="t">✎</div><div class="t">✒</div><div class="t">▢</div>
+          <div class="t">⊙</div><div class="t">╱</div><div class="t">▭</div>
+          <div class="t">◯</div><div class="t">A</div><div class="t ai">✦</div>
         </div>
         <div class="app-mock-canvas">canvas stage (transparent checker)</div>
         <div class="app-mock-aipanel">
@@ -496,11 +496,12 @@
         </ul>
       </div>
       <div class="card">
-        <h4>11 tools</h4>
+        <h4>12 tools</h4>
         <ul class="feature-list">
-          <li>Select, Smart Select (point/box/text via <code>/ai/segment</code>), Pencil, Brush, Eraser, Fill, Line, Rect, Ellipse, Text, AI Brush.</li>
+          <li>Pointer (exits selection mode), Select, Smart Select (point/box/text via <code>/ai/segment</code>), Pencil, Brush, Eraser, Fill, Line, Rect, Ellipse, Text, AI Brush.</li>
           <li>Pointer events flow through a per-tool handler; strokes commit before/after <code>ImageData</code> to a history stack supporting undo/redo.</li>
-          <li>Keyboard: <code>⌘Z</code>/<code>⌘⇧Z</code>, <code>[</code>/<code>]</code> for brush size.</li>
+          <li>Keyboard: <code>⌘Z</code>/<code>⌘⇧Z</code>, <code>[</code>/<code>]</code> for brush size. Losing window focus cancels any in-progress stroke cleanly via a <code>window blur</code> listener.</li>
+          <li>Selection overlays expose 8 interactive resize handles (4 corners + 4 edge midpoints) so the inpaint region can be adjusted after AI output is generated.</li>
         </ul>
       </div>
     </div>
@@ -529,7 +530,15 @@
       </div>
       <div class="card">
         <h4>⌘K command bar</h4>
-        <div class="muted">Global, context-aware. The mode chip flips between <em>Inpaint</em>, <em>Outpaint</em>, and <em>New Layer</em> based on whether you have a selection or references.</div>
+        <div class="muted">Global, context-aware. The mode chip flips between <em>Inpaint</em>, <em>Outpaint</em>, and <em>New Layer</em> based on whether you have a selection or references. Footer hint reads <code>↵ generate · ⇧+↵ new line</code>.</div>
+      </div>
+      <div class="card">
+        <h4>Settings tab</h4>
+        <div class="muted">Per-session overrides for provider, model, autonomy mode, default style, variation count (1–4), and feather radius — all persisted in <code>localStorage</code> via <code>settingsStore</code> and forwarded into every <code>AIGenerateRequest</code> at fire time.</div>
+      </div>
+      <div class="card">
+        <h4>Floating quick-actions</h4>
+        <div class="muted">When a smart-select region is active, four buttons appear above it: Generate, Remove (seamless background fill), Reimagine (variation), Restyle. Each fires a full inpaint request including <code>maskBoundsPx</code> so canvas-code providers can target the edit region exactly. A <strong>Re-run</strong> button replays the most recent inpaint prompt against the current (possibly resized) selection.</div>
       </div>
     </div>
 
@@ -551,6 +560,19 @@
         <h4>Status bar</h4>
         <div class="muted">Live dimensions, zoom, and an inline <code>⌘K</code> trigger. Tool handlers write into <code>setStatusText</code> for transient hints.</div>
       </div>
+    </div>
+
+    <h3>Bug fixes · v0.2</h3>
+    <div class="card">
+      <ul class="feature-list">
+        <li><strong>Fill tool infinite loop + bounds crash</strong> — flood fill with a ±1 tolerance matched already-filled pixels and pushed them back onto the stack indefinitely. Fixed with a <code>Uint8Array</code> visited bitset (also eliminates O(4n) stack growth). Coordinate clamping prevents an out-of-bounds <code>startIdx</code> when <code>Math.round</code> lands on the edge pixel.</li>
+        <li><strong>Canvas Size silent data loss</strong> — Image › Canvas Size destroyed all layers without confirmation. Now shares the same dirty-check + confirm guard that <em>New Project</em> already used.</li>
+        <li><strong>Smart-select off-by-one</strong> — Selection dimensions were <code>maxX − minX</code> / <code>maxY − minY</code> instead of <code>+1</code>, cutting off the rightmost column and bottom row of every smart selection and misaligning subsequent inpaints.</li>
+        <li><strong>Shape overlay ghost</strong> — Starting a new shape stroke didn't clear the overlay canvas, leaving the previous drag's preview ghost visible when a prior stroke was interrupted (pointer left window or capture failed).</li>
+        <li><strong>CommandBar keyboard hint</strong> — Footer read "⌘+↵ generate" when plain Enter already submits. Corrected to "↵ generate · ⇧+↵ new line".</li>
+        <li><strong>FloatingActions missing <code>maskBoundsPx</code></strong> — Quick-action buttons omitted <code>maskBoundsPx</code> from their inpaint requests, preventing canvas-code providers from targeting the edit region.</li>
+        <li><strong>Window blur handler</strong> — Dragging from the canvas out of the window left the drawing state active. A <code>window blur</code> listener in <code>CanvasStage</code> now cancels any in-progress stroke and clears overlay marks left by an interrupted drag.</li>
+      </ul>
     </div>
   </section>
 
@@ -589,7 +611,7 @@
     </div>
 
     <h2>State management</h2>
-    <p>Three Zustand stores, all instantiated as singletons on <code>globalThis</code> so HMR doesn't fork them:</p>
+    <p>Four Zustand stores, all instantiated as singletons on <code>globalThis</code> so HMR doesn't fork them:</p>
     <table class="providers">
       <tr><th>Store</th><th>Owns</th><th>Notes</th></tr>
       <tr>
@@ -607,20 +629,27 @@
         <td>command-bar open/closed</td>
         <td>Kept separate so transient UI doesn't trigger autosave.</td>
       </tr>
+      <tr>
+        <td><code>settingsStore</code></td>
+        <td>provider override, model override, autonomy, default style, variation count (1–4), feather radius</td>
+        <td>Persisted via <code>localStorage</code>. Overrides are forwarded into every <code>AIGenerateRequest</code> at fire time, enabling per-session provider/model switching without restarting the server.</td>
+      </tr>
     </table>
 
     <h2>The proxy server</h2>
     <p>
       The server (<code>server/src/index.ts</code>) is intentionally thin: bind to localhost only, validate every body with zod,
-      cap requests at 32 MB, and hand off to one of three routes.
+      cap requests at 32 MB, and hand off to one of five routes.
       <code>/ai/chat</code> uses SSE so the UI can stream assistant text and an op-proposal event in the same response.
+      <code>/ai/generate</code> queues concurrent requests (default: 1 active, 2 queued) via <code>GenerateQueue</code> so simultaneous sessions don't race the model provider; queue depth is visible at <code>/ai/status</code>.
     </p>
 
     <h3>Endpoints</h3>
     <table class="providers">
       <tr><th>Route</th><th>Backed by</th><th>Returns</th></tr>
       <tr><td><code>GET /ai/health</code></td><td>spawns <code>codex --version</code> + checks <code>imageProvider.isReady()</code></td><td>JSON status</td></tr>
-      <tr><td><code>POST /ai/generate</code></td><td><code>imageProvider.generate()</code></td><td><code>{ variationsBase64, seeds }</code></td></tr>
+      <tr><td><code>GET /ai/status</code></td><td>reads live config, calls <code>provider.isReady()</code>, snapshots <code>GenerateQueue</code> — no subprocess</td><td>JSON: provider name, model, ready flag, queue depth</td></tr>
+      <tr><td><code>POST /ai/generate</code></td><td><code>GenerateQueue</code> → <code>imageProvider.generate()</code>; accepts optional <code>providerOverride</code> / <code>modelOverride</code></td><td><code>{ variationsBase64, seeds }</code></td></tr>
       <tr><td><code>POST /ai/segment</code></td><td>pure JS — flood fill, rect, or color-word mask</td><td>PNG mask, base64</td></tr>
       <tr><td><code>POST /ai/chat</code></td><td><code>codex exec --json</code>, fenced <code>json-op</code> blocks parsed out</td><td>SSE: <code>text</code> chunks + optional <code>op-proposal</code> + <code>done</code></td></tr>
     </table>
@@ -665,10 +694,10 @@
 
     <h3>Canvas-code rendering pipeline</h3>
     <pre>// shared by codex-canvas, cursor-canvas, gemini-canvas
-const raw      = await generateText(userPrompt, DRAW_SYSTEM);    // model call
-const code     = extractCode(raw);                               // strips fences
-const canvas   = createCanvas(width, height);                    // node-canvas
-runDrawCode(code, ctx, width, height);                           // vm, 5s timeout
+const raw      = await generateText(userPrompt, DRAW_SYSTEM);         // model call
+const code     = extractCode(raw);                                    // strips fences
+const canvas   = createCanvas(width, height);                         // node-canvas
+await runDrawCodeInWorker(code, ctx, width, height);                  // Worker thread, 5s timeout
 const base     = ctx.getImageData(0, 0, width, height);
 // 4 variations via fixed R/G/B/brightness shifts on the same base
 return { variationsBase64: shifts.map(s => deriveVariation(base, ...s)), seeds };</pre>
@@ -676,6 +705,9 @@ return { variationsBase64: shifts.map(s => deriveVariation(base, ...s)), seeds }
       The trade-off is honest about itself: model latency dominates (one call per request), and variations are
       cheap recolorings of the same composition rather than independent draws. The win is that the same renderer
       hosts three very different model transports behind one interface.
+      <code>runDrawCode</code> now executes inside a <code>node:worker_threads</code> Worker
+      (<code>drawCodeWorker.js</code>) so a runaway or slow draw function cannot block the event loop;
+      the 5 s wall-clock timeout is enforced by the Worker's message channel, not a <code>vm</code> timer.
     </p>
 
     <h2>Frontend seams</h2>
@@ -688,9 +720,11 @@ const copilotKind   = import.meta.env.VITE_AI_COPILOT   ?? "mock"; // mock | cod
 
     <h2>Testing surface</h2>
     <p>
-      <code>vitest</code> with <code>jsdom</code>. The canvas-code renderer is tested by feeding canned draw functions
-      through the real <code>node-canvas</code> + <code>vm</code> pipeline, asserting on pixel data. Provider readiness
-      and the proxy's zod validation each have their own suites.
+      <code>vitest</code> with <code>jsdom</code> — 63 tests across 14 suites. Key coverage areas:
+      the canvas-code renderer (canned draw functions through the real <code>node-canvas</code> + Worker pipeline,
+      asserting on pixel data); the fill tool visited-set and bounds clamping; the generate queue concurrency
+      model; selection bounds arithmetic; inpaint commit compositing; codex client timeout / abort handling;
+      provider readiness; and the proxy's zod validation.
     </p>
   </section>
 
