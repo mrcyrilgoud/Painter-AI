@@ -9,6 +9,8 @@ interface UIState {
   toggleCommandBar: () => void;
   aiPanelTab: AIPanelTab;
   setAiPanelTab: (tab: AIPanelTab) => void;
+  chatInputFocusTrigger: number;
+  triggerChatInputFocus: () => void;
 }
 
 const createUI = () =>
@@ -19,6 +21,8 @@ const createUI = () =>
     toggleCommandBar: () => set((s) => ({ commandBarOpen: !s.commandBarOpen })),
     aiPanelTab: "chat",
     setAiPanelTab: (aiPanelTab) => set({ aiPanelTab }),
+    chatInputFocusTrigger: 0,
+    triggerChatInputFocus: () => set((s) => ({ chatInputFocusTrigger: s.chatInputFocusTrigger + 1 })),
   }));
 
 type Store = ReturnType<typeof createUI>;

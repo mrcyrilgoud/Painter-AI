@@ -33,17 +33,7 @@ function drawWorkerPath(): string {
   return path.join(process.cwd(), "server/src/imageApi/drawCodeWorker.js");
 }
 
-export const DRAW_SYSTEM = `You are a canvas artist. Write a JavaScript function that renders the requested scene onto an HTML5 Canvas 2D context.
-
-Rules:
-- Output ONLY a single function with this exact signature:
-  function draw(ctx, width, height) { ... }
-- Use only standard Canvas 2D API: fillRect, fillStyle, strokeStyle, beginPath, arc, moveTo, lineTo, bezierCurveTo, createLinearGradient, createRadialGradient, etc.
-- Fill the entire canvas with a coherent background first.
-- Represent the subject matter clearly and literally — a sunset should have orange/pink sky and horizon, a castle should have towers and walls, a forest should have trees, etc.
-- Match the style hint: "oilpaint" = thick brushstrokes with save/restore, "watercolor" = low-alpha overlapping shapes, "anime" = bold flat fills with hard outlines, "sketch" = thin grey lines, "pixel" = sharp-edge rectangles on a grid.
-- No external resources. No try/catch. No console.log. No comments.
-- Output ONLY the raw function body — no markdown, no explanation, no code fences.
+export const DRAW_SYSTEM = `Write a JavaScript function draw(ctx,width,height) for Canvas 2D. Max 40 lines, no comments. Draw back-to-front. Use gradients for backgrounds, sky, ground, or water as appropriate for the requested scene (e.g. use deep black/dark gradient with stars for space, realistic skies for outdoors). Use realistic colors and positioning for the scene. Objects should sit on the ground/floor line if ground-based, or float/be positioned naturally. Style hint if given. Output ONLY the raw function, no markdown.
 `;
 
 /**
@@ -59,9 +49,8 @@ Rules:
   function draw(ctx, width, height) { ... }
 - The canvas you receive is JUST the fill region; (0,0) is the top-left of that region and (width,height) is its bottom-right. Do not draw a full scene around it.
 - Use only standard Canvas 2D API: fillRect, fillStyle, strokeStyle, beginPath, arc, moveTo, lineTo, bezierCurveTo, createLinearGradient, createRadialGradient, etc.
-- The "Surrounding context" block in the user message lists the dominant boundary palette and the average color of each edge of the fill region. Pick fills and edge gradients that continue those colors smoothly so the patch blends into the surrounding image.
-- IMPORTANT — edge anchoring: The "Edge rows" block lists the actual pixel colors from the rows immediately outside each edge of your canvas. Your draw() MUST begin by painting a 2-pixel-wide strip along each edge using those exact colors. For the top edge, paint rows y=0 and y=1 using row-0 and row-1 hex values respectively, sampling evenly across the width. Do the same for bottom (y=height-1, y=height-2), left (x=0, x=1), and right (x=width-1, x=width-2). These seed pixels anchor your fill to the surrounding image — blend all content inward from them using gradients.
-- Render the subject matter the user requested, but constrained to the colors and lighting implied by the surrounding palette.
+- The "Surrounding context" block in the user message lists the dominant boundary palette and the average color of each edge of the fill region. Pick fills, backgrounds, and edge gradients that transition smoothly from those boundary/edge colors into your content so it blends seamlessly into the surrounding image.
+- Render the subject matter the user requested, matching the lighting, colors, and perspective implied by the surrounding palette and global thumbnail.
 - No external resources. No try/catch. No console.log. No comments.
 - Output ONLY the raw function body — no markdown, no explanation, no code fences.
 `;
@@ -203,6 +192,82 @@ async function renderBase(
   return { pixels, width, height, modelMs, drawMs };
 }
 
+export function validateInpaint(
+  code: string,
+  pixels: Uint8ClampedArray,
+  prompt: string,
+  _bounds: { w: number; h: number },
+): { valid: boolean; reason?: string } {
+  if (!code.includes("function draw")) {
+    return { valid: false, reason: "Code does not contain the draw(ctx, width, height) function signature." };
+  }
+
+  const hasCtxCalls = /ctx\.\w+/.test(code);
+  if (!hasCtxCalls) {
+    return { valid: false, reason: "The code does not perform any drawing operations on the 'ctx' canvas context." };
+  }
+
+  if (pixels.length === 0) {
+    return { valid: false, reason: "The generated pixel buffer is empty." };
+  }
+
+  let isBlankOrSolid = true;
+  const firstR = pixels[0];
+  const firstG = pixels[1];
+  const firstB = pixels[2];
+  const firstA = pixels[3];
+  
+  for (let i = 4; i < pixels.length; i += 4) {
+    if (
+      pixels[i] !== firstR ||
+      pixels[i + 1] !== firstG ||
+      pixels[i + 2] !== firstB ||
+      pixels[i + 3] !== firstA
+    ) {
+      isBlankOrSolid = false;
+      break;
+    }
+  }
+
+  const isRemovePrompt = /remove|erase|delete|bg|background|clear|blend/i.test(prompt);
+
+  if (isBlankOrSolid) {
+    if (firstA === 0) {
+      return { valid: false, reason: "The generated image is completely transparent (blank canvas)." };
+    }
+    if (!isRemovePrompt) {
+      return { valid: false, reason: "The generated image is a flat, single solid color. For creative prompts, you must draw a rich, detailed subject that blends with the surroundings." };
+    }
+  }
+
+  return { valid: true };
+}
+
+export function generateProceduralFallback(
+  width: number,
+  height: number,
+  edgeColors: { top: string; right: string; bottom: string; left: string }
+): Uint8ClampedArray {
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext("2d");
+  
+  const gradV = ctx.createLinearGradient(0, 0, 0, height);
+  gradV.addColorStop(0, edgeColors.top || "#ffffff");
+  gradV.addColorStop(1, edgeColors.bottom || "#ffffff");
+  ctx.fillStyle = gradV;
+  ctx.fillRect(0, 0, width, height);
+
+  const gradH = ctx.createLinearGradient(0, 0, width, 0);
+  const leftColor = edgeColors.left || "#ffffff";
+  const rightColor = edgeColors.right || "#ffffff";
+  gradH.addColorStop(0, leftColor + "80");
+  gradH.addColorStop(1, rightColor + "80");
+  ctx.fillStyle = gradH;
+  ctx.fillRect(0, 0, width, height);
+
+  return ctx.getImageData(0, 0, width, height).data as unknown as Uint8ClampedArray;
+}
+
 /**
  * Inpaint render — generates a region-sized canvas using the INPAINT_SYSTEM
  * prompt augmented with a structured description of the surrounding image.
@@ -220,23 +285,69 @@ async function renderInpaint(
 ): Promise<{ pixels: Uint8ClampedArray; width: number; height: number; modelMs: number; drawMs: number }> {
   const styleHint = style && style !== "none" ? ` Style: ${style}.` : "";
   const edgeSeedNote = description.edgeRows
-    ? "\nFirst action in draw(): seed all four edge strips from the Edge rows below, then blend inward."
+    ? "\nUse the Edge rows listed below to match your outer boundary gradients to the adjacent colors."
     : "";
-  const userPrompt =
+  const baseUserPrompt =
     `Fill request: "${prompt}"${styleHint}${edgeSeedNote}\n` +
     `Seed: ${variationSeed}\n` +
     `Fill window: ${bounds.w}×${bounds.h}px (positioned at (${bounds.x},${bounds.y}) inside a ${fullWidth}×${fullHeight} image)\n` +
     `Surrounding context:\n${description.text}`;
-  const modelStart = Date.now();
-  const raw = await generateText(userPrompt, INPAINT_SYSTEM, options);
-  const modelMs = Date.now() - modelStart;
-  const code = extractCode(raw);
 
-  const drawStart = Date.now();
-  const pixels = await runDrawCodeInWorker(code, bounds.w, bounds.h, options?.signal);
-  const drawMs = Date.now() - drawStart;
+  let currentPrompt = baseUserPrompt;
+  let attempts = 0;
+  const maxAttempts = 3;
+  let lastError: string | null = null;
+  let modelMsTotal = 0;
+  let drawMsTotal = 0;
 
-  return { pixels, width: bounds.w, height: bounds.h, modelMs, drawMs };
+  while (attempts < maxAttempts) {
+    attempts++;
+    const modelStart = Date.now();
+    try {
+      const raw = await generateText(currentPrompt, INPAINT_SYSTEM, options);
+      modelMsTotal += Date.now() - modelStart;
+      const code = extractCode(raw);
+
+      const drawStart = Date.now();
+      const pixels = await runDrawCodeInWorker(code, bounds.w, bounds.h, options?.signal);
+      drawMsTotal += Date.now() - drawStart;
+
+      const validation = validateInpaint(code, pixels, prompt, bounds);
+      if (validation.valid) {
+        return { pixels, width: bounds.w, height: bounds.h, modelMs: modelMsTotal, drawMs: drawMsTotal };
+      } else {
+        lastError = validation.reason || "Validation failed";
+      }
+    } catch (err) {
+      modelMsTotal += Date.now() - modelStart;
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+
+    if (options?.signal?.aborted) {
+      throw new Error("aborted");
+    }
+
+    currentPrompt =
+      baseUserPrompt +
+      `\n\n---\n\n` +
+      `CRITICAL: Your previous code output failed validation or execution.\n` +
+      `Failure reason: ${lastError}\n` +
+      `Please write a CORRECT JavaScript function draw(ctx, width, height) that resolves this error.\n` +
+      `Ensure you draw rich visual details representing the prompt "${prompt}", blending perfectly with the surrounding palette and edge colors. Use actual drawing operations (ctx.fillRect, ctx.arc, etc.) and write ONLY the raw code for the draw() function without any markdown backticks or extra explanation.`;
+  }
+
+  // Fallback to procedurally generated premium gradient
+  const fallbackStart = Date.now();
+  const pixels = generateProceduralFallback(bounds.w, bounds.h, description.edgeColors);
+  drawMsTotal += Date.now() - fallbackStart;
+
+  return {
+    pixels,
+    width: bounds.w,
+    height: bounds.h,
+    modelMs: modelMsTotal,
+    drawMs: drawMsTotal,
+  };
 }
 
 /**

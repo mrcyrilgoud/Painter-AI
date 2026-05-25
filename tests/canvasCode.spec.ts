@@ -4,6 +4,8 @@ import {
   runDrawCode,
   runDrawCodeInWorker,
   extractCode,
+  validateInpaint,
+  generateProceduralFallback,
 } from "../server/src/imageApi/canvasCodeRenderer";
 
 describe("canvasCodeRenderer", () => {
@@ -74,6 +76,78 @@ describe("canvasCodeRenderer", () => {
       const p = runDrawCodeInWorker(code, 8, 8, ctrl.signal);
       ctrl.abort();
       await expect(p).rejects.toThrow(/aborted/);
+    });
+  });
+
+  describe("validateInpaint", () => {
+    it("fails when draw function signature is missing", () => {
+      const res = validateInpaint("const x = 5;", new Uint8ClampedArray([0,0,0,0]), "add birds", { w: 1, h: 1 });
+      expect(res.valid).toBe(false);
+      expect(res.reason).toContain("signature");
+    });
+
+    it("fails when no ctx operations are performed", () => {
+      const res = validateInpaint("function draw(ctx, w, h) { return 42; }", new Uint8ClampedArray([0,0,0,0]), "add birds", { w: 1, h: 1 });
+      expect(res.valid).toBe(false);
+      expect(res.reason).toContain("drawing operations");
+    });
+
+    it("fails on fully transparent / empty pixels", () => {
+      const res = validateInpaint(
+        "function draw(ctx, w, h) { ctx.fillRect(0,0,w,h); }",
+        new Uint8ClampedArray([0,0,0,0, 0,0,0,0]),
+        "add birds",
+        { w: 2, h: 1 }
+      );
+      expect(res.valid).toBe(false);
+      expect(res.reason).toContain("transparent");
+    });
+
+    it("fails on flat solid color for creative prompts", () => {
+      const res = validateInpaint(
+        "function draw(ctx, w, h) { ctx.fillStyle = '#ff0000'; ctx.fillRect(0,0,w,h); }",
+        new Uint8ClampedArray([255,0,0,255, 255,0,0,255]),
+        "add birds",
+        { w: 2, h: 1 }
+      );
+      expect(res.valid).toBe(false);
+      expect(res.reason).toContain("solid color");
+    });
+
+    it("passes on flat solid color for remove prompts", () => {
+      const res = validateInpaint(
+        "function draw(ctx, w, h) { ctx.fillStyle = '#ff0000'; ctx.fillRect(0,0,w,h); }",
+        new Uint8ClampedArray([255,0,0,255, 255,0,0,255]),
+        "seamless background remove",
+        { w: 2, h: 1 }
+      );
+      expect(res.valid).toBe(true);
+    });
+
+    it("passes on rich multi-color drawing for creative prompts", () => {
+      const res = validateInpaint(
+        "function draw(ctx, w, h) { ctx.fillRect(0,0,w,h); }",
+        new Uint8ClampedArray([255,0,0,255, 0,255,0,255]),
+        "add a colorful ball",
+        { w: 2, h: 1 }
+      );
+      expect(res.valid).toBe(true);
+    });
+  });
+
+  describe("generateProceduralFallback", () => {
+    it("draws a smooth blending gradient matching the edge colors", () => {
+      const edgeColors = {
+        top: "#ff0000",     // Red
+        bottom: "#00ff00",  // Green
+        left: "#0000ff",    // Blue
+        right: "#ffff00",   // Yellow
+      };
+      const pixels = generateProceduralFallback(8, 8, edgeColors);
+      expect(pixels).toHaveLength(8 * 8 * 4);
+      // Verify corner/edge values have been painted
+      expect(pixels[0]).toBeGreaterThan(0); // Top-left should have red/blue components
+      expect(pixels[3]).toBe(255); // Alpha channel is fully opaque
     });
   });
 });

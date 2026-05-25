@@ -29,7 +29,6 @@ const ACTIONS: FloatingAction[] = [
 
 export function FloatingActions({ dimensions }: Props) {
   const selection = useEditorStore((s) => s.selection);
-  const openCommandBar = useUIStore((s) => s.openCommandBar);
 
   // Last non-dismissed inpaint/restyle op with a meaningful prompt — used for the Re-run button.
   const lastInpaintReq = useChatStore((s) => {
@@ -56,6 +55,11 @@ export function FloatingActions({ dimensions }: Props) {
       return;
     }
     if (!a.mode) return;
+    if (a.label === "Generate") {
+      useUIStore.getState().setAiPanelTab("chat");
+      useUIStore.getState().triggerChatInputFocus();
+      return;
+    }
     const editor = useEditorStore.getState();
     const capturedSelection = editor.selection;
     if (!capturedSelection) return;
@@ -155,7 +159,10 @@ export function FloatingActions({ dimensions }: Props) {
       )}
       <button
         className={`${styles.floatingBtn} ${styles.cmdkBtn}`}
-        onClick={openCommandBar}
+        onClick={() => {
+          useUIStore.getState().setAiPanelTab("chat");
+          useUIStore.getState().triggerChatInputFocus();
+        }}
         title="Open ⌘K for custom prompt"
         aria-label="Custom prompt via ⌘K"
       >

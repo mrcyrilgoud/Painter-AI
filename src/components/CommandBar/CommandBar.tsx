@@ -27,7 +27,14 @@ export function CommandBar() {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        toggle();
+        const editor = useEditorStore.getState();
+        if (editor.selection) {
+          close();
+          useUIStore.getState().setAiPanelTab("chat");
+          useUIStore.getState().triggerChatInputFocus();
+        } else {
+          toggle();
+        }
       } else if (e.key === "Escape" && open) {
         e.preventDefault();
         close();

@@ -34,7 +34,7 @@ describe("runOp inpaint selection", () => {
       request,
       confidence: 0.9,
       via: "chat",
-      status: "idle",
+      status: "pending",
     });
 
     void runOp(msgId, request, 0.9);

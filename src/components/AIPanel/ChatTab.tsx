@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore, type ChatMessage } from "../../state/chatStore";
 import { useEditorStore } from "../../state/editorStore";
+import { useUIStore } from "../../state/uiStore";
 import { copilot } from "../../ai";
 import type { CanvasContext } from "../../ai/types";
 import { compositeBitmap, selectionToMask, selectionToMaskBoundsPx } from "../../utils/composite";
@@ -22,6 +23,16 @@ export function ChatTab() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const chatInputFocusTrigger = useUIStore((s) => s.chatInputFocusTrigger);
+
+  useEffect(() => {
+    if (chatInputFocusTrigger > 0) {
+      textareaRef.current?.focus();
+      textareaRef.current?.select();
+    }
+  }, [chatInputFocusTrigger]);
 
   useEffect(() => {
     const el = threadRef.current;
@@ -205,6 +216,7 @@ export function ChatTab() {
         )}
 
         <textarea
+          ref={textareaRef}
           className={styles.input}
           rows={3}
           value={text}

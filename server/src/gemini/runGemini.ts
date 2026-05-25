@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { config } from "../config.js";
 
-const GEMINI_TIMEOUT_MS = 120_000;
+const GEMINI_TIMEOUT_MS = 26_000;
 
 export interface RunGeminiOptions {
   prompt: string;
@@ -49,6 +49,14 @@ export async function runGeminiCollectText(opts: RunGeminiOptions): Promise<stri
     } catch {
       /* ignore */
     }
+    // Force-kill 2s later if SIGTERM was not enough to stop the CLI promptly.
+    setTimeout(() => {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        /* ignore */
+      }
+    }, 2_000);
   }, timeoutMs);
 
   try {

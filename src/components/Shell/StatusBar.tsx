@@ -7,6 +7,15 @@ export function StatusBar() {
   const dimensions = useEditorStore((s) => s.dimensions);
   const zoom = useEditorStore((s) => s.zoom);
   const openCommandBar = useUIStore((s) => s.openCommandBar);
+  const selection = useEditorStore((s) => s.selection);
+  const handleCmdK = () => {
+    if (selection) {
+      useUIStore.getState().setAiPanelTab("chat");
+      useUIStore.getState().triggerChatInputFocus();
+    } else {
+      openCommandBar();
+    }
+  };
   return (
     <footer className={styles.bar}>
       <span className={styles.text}>{statusText}</span>
@@ -15,7 +24,7 @@ export function StatusBar() {
         {dimensions.width}×{dimensions.height}
       </span>
       <span className={styles.cell}>{Math.round(zoom * 100)}%</span>
-      <button className={styles.kbd} onClick={openCommandBar} title="Open command bar (⌘K)">
+      <button className={styles.kbd} onClick={handleCmdK} title="Open command bar (⌘K)">
         ⌘K
       </button>
     </footer>

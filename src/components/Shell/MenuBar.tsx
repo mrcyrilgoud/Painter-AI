@@ -23,6 +23,16 @@ function useMenus(): Record<string, MenuItem[]> {
   const resetProject = useEditorStore((s) => s.resetProject);
   const openCommandBar = useUIStore((s) => s.openCommandBar);
   const toggleTheme = useEditorStore((s) => s.toggleTheme);
+  const selection = useEditorStore((s) => s.selection);
+
+  const handleCmdK = () => {
+    if (selection) {
+      useUIStore.getState().setAiPanelTab("chat");
+      useUIStore.getState().triggerChatInputFocus();
+    } else {
+      openCommandBar();
+    }
+  };
 
   const newProject = (preset: Exclude<CanvasPreset, "custom">) => {
     // renderTick > 0 means the canvas has been mutated since the store was
@@ -109,7 +119,7 @@ function useMenus(): Record<string, MenuItem[]> {
       },
     ],
     AI: [
-      { label: "Open Cmd+K", action: openCommandBar },
+      { label: "Open Cmd+K", action: handleCmdK },
       { label: "Backend Settings…", action: () => useUIStore.getState().setAiPanelTab("settings") },
     ],
     Help: [

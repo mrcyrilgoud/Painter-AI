@@ -18,7 +18,8 @@ export const aiBrushTool: ToolHandler = {
     const x = Math.max(0, Math.min(dimensions.width - DEFAULT_BOX, p.x - half));
     const y = Math.max(0, Math.min(dimensions.height - DEFAULT_BOX, p.y - half));
     setSelection({ x, y, w: DEFAULT_BOX, h: DEFAULT_BOX });
-    useUIStore.getState().openCommandBar();
+    useUIStore.getState().setAiPanelTab("chat");
+    useUIStore.getState().triggerChatInputFocus();
   },
   onMove() {},
   onUp() {},
