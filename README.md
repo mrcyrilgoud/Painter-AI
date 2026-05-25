@@ -1,6 +1,6 @@
 # Painter AI
 
-A browser-based painting app with first-class AI affordances — per-layer canvases, a ⌘K command bar, a streaming copilot panel, and a pluggable image-generation backend that routes to OpenAI, Codex, Gemini, or Cursor.
+A modern, browser-based painting application with first-class AI capabilities — featuring per-layer canvases, a global ⌘K controller, a streaming copilot panel, and a pluggable image-generation proxy.
 
 ![Painter AI demo](docs/painter-ai-codex-sdk-demo.gif)
 
@@ -8,213 +8,196 @@ A browser-based painting app with first-class AI affordances — per-layer canva
 
 ## Features
 
-### Canvas & tools
-- **12 tools:** Pointer, Select, Smart Select, Pencil, Brush, Eraser, Fill, Line, Rectangle, Ellipse, Text, AI Brush
-- Per-layer `<canvas>` stack — each layer owns its own `HTMLCanvasElement` with visibility, opacity, and blend-mode controls
-- Smart Select places an inpaint region automatically around the clicked point; **8 resize handles** (corners + edge midpoints) let you adjust it after AI output lands
-- Unlimited undo / redo (`⌘Z` / `⌘⇧Z`); brush size via `[` / `]`
-- Window-blur guard cancels any in-progress stroke cleanly if the window loses focus
+### Canvas & Drawing Tools
+- **12 Rich Tools:** Pointer, Select, Smart Select, Pencil, Brush, Eraser, Fill, Line, Rectangle, Ellipse, Text, and AI Brush.
+- **Per-Layer Canvas Stack:** Every layer owns an independent `HTMLCanvasElement` with full visibility, opacity, and blend-mode controls.
+- **Interactive Inpaint Selection:** Smart Select segments and bounds the clicked target automatically. The selection box features **8 resize handles** (corners + edge midpoints) for perfect canvas alignment.
+- **State Controls:** Unlimited Undo and Redo stacks (`⌘Z` / `⌘⇧Z`), adjustable brush sizes via `[` / `]`, and window-blur guard that cleanly cancels active strokes if the window loses focus.
 
-### AI panel
-- **Chat tab** — streams text + op-proposal cards from the Codex copilot
-- **History tab** — newest-first list of committed AI ops with 48 px thumbnails
-- **Settings tab** — per-session overrides for provider, model, autonomy mode, default style, variation count (1–4), and feather radius; persisted in `localStorage`
-- **Op proposal cards** — 2 × 2 variation grid in the chat thread; click to commit, others fade
-- **Autonomy modes:** Propose (default), Auto-confident, Agentic
-- **⌘K command bar** — global, context-aware; mode chip flips between Inpaint / Outpaint / New Layer based on active selection and references
+### Chat-Integrated AI Copilot
+- **Context-aware ⌘K:** When a selection is active, pressing `⌘K` skips the CommandBar overlay and instead focuses the **Chat tab** input directly — Enter then fires a fast inpaint without a copilot round-trip. Without a selection, `⌘K` opens the CommandBar overlay for whole-canvas generation; the status bar's `⌘K` button always opens the CommandBar.
+- **Chat input smart routing:** With an active selection, pressing `Enter` in the chat input calls `runInfill()` directly (inpaint, no copilot). Pressing `⌘/Ctrl+Enter`, or typing without a selection, routes through the copilot for a conversational response (which may itself produce an op-proposal card).
+- **Proposals & History:** The Copilot streams rich text responses and **2×2 visual op-proposal cards** into the chat thread. Clicking a card commits that variation to the layer stack; others fade out. The History tab displays a chronological record of committed AI operations with 48px thumbnails.
+- **Autonomy Modes:** Switch between *Propose* (requires review), *Auto-confident* (auto-commits high-confidence outputs), and *Agentic* (lets the agent generate and manipulate layer structures).
+- **Settings overrides:** Per-session settings for AI providers, models, autonomy levels, default styles, variation count (1–4), and feather radius are stored locally.
 
-### Floating quick-actions
-When a selection is active, a toolbar appears above it:
-- **Generate** — open inpaint with a free prompt
-- **Remove** — seamless background fill
-- **Reimagine** — inpaint variation of the region
-- **Restyle** — restyle the region
-- **Re-run** — replays the last inpaint/restyle prompt from chat history against the current (possibly resized) selection
+### Floating Quick-Actions
+When an active selection is made, a floating toolbar appears directly above it:
+- **Generate / Prompt:** Activates focus on the Chat tab for custom prompt inpainting.
+- **Remove:** Triggers seamless background fill using boundary colors.
+- **Reimagine:** Generates fresh visual variations of the selected region.
+- **Restyle:** Transforms the style of the selection using the default style configuration.
+- **Re-run:** Replays the last executed prompt in chat history against the current (possibly resized) selection bounds.
 
-### Project & persistence
-- **Autosave** — 5-second debounced snapshot to `localStorage` (layers as PNG data URLs)
-- **Open / Save** — `.paintai.json` round-trip format (v1)
-- **Export** — PNG or JPG flat composite
-- **Canvas presets** — 512², 1024², 1024 × 1536 portrait, 1536 × 1024 landscape
+### Project & Persistence
+- **Autosave:** A 5-second debounced state snapshot is auto-saved to `localStorage` (storing layers as PNG data URLs).
+- **File System Support:** Save and load projects locally in the custom `.paintai.json` (v1) format.
+- **Export Options:** Export final composite artwork directly as PNG or high-quality JPG.
+- **Canvas Presets:** 512², 1024², 1024×1536 (Portrait), and 1536×1024 (Landscape).
 
 ---
 
 ## Architecture
 
 ```
-Frontend (Vite + React 18)            Proxy (Hono + Node)          Providers
-─────────────────────────────  ──►  ─────────────────────────  ──►  ─────────────────
-editorStore  (layers, tools,        GET  /ai/health                  mock
-             selection, history)    GET  /ai/status                  openai (gpt-image-1)
-chatStore    (messages, ops)        POST /ai/chat  (SSE)             codex-canvas
-uiStore      (command bar)          POST /ai/generate               cursor-canvas
-settingsStore(provider/model        POST /ai/segment                gemini-canvas
-             overrides, style)
+Frontend (Vite + React 18)             Proxy (Hono + Node)             Providers
+───────────────────────────────  ──►  ──────────────────────────  ──►  ────────────────────────
+editorStore (layers, selection)       GET  /ai/health                  mock (procedural fill)
+chatStore   (messages, ops)           GET  /ai/status                  openai (gpt-image-1)
+uiStore     (command bar focus)       POST /ai/chat (SSE)              codex-canvas (SDK)
+settingsStore (autonomy, styles)      POST /ai/generate                cursor-canvas (SDK)
+                                      POST /ai/segment                 gemini-canvas (CLI)
 ```
 
-### Frontend seams
+- **Frontend Seams:** To avoid dual-state inconsistencies, the client-side mock backend/copilot is disabled. The frontend always routes AI tasks to the server proxy.
+- **Downstream Image Providers:** All image providers implement a unified interface: `generate(req) -> { variationsBase64, seeds }`.
 
-Three AI capabilities are swappable via Vite env vars at build time:
-
-```ts
-// src/ai/index.ts
-const backendKind   = import.meta.env.VITE_AI_BACKEND   ?? "mock"; // mock | codex
-const segmenterKind = import.meta.env.VITE_AI_SEGMENTER ?? "mock"; // mock | codex
-const copilotKind   = import.meta.env.VITE_AI_COPILOT   ?? "mock"; // mock | codex
-```
-
-### Image providers
-
-All providers implement `ImageProvider`:  `name`, `isReady()`, `generate(req) → { variationsBase64, seeds }`.
-
-| Provider | Transport | Requires |
+| Provider | Integration Type | Authentication |
 |---|---|---|
-| `mock` | server-side procedural fill | always ready |
-| `openai` | HTTPS → `gpt-image-1` | `OPENAI_API_KEY` |
-| `codex-canvas` | `codex exec --json` subprocess | Codex CLI + auth |
-| `cursor-canvas` | `@cursor/sdk` `Agent.prompt()` | `CURSOR_API_KEY` |
-| `gemini-canvas` | `gemini` CLI subprocess | `gemini` on PATH |
-
-The canvas-code providers share one renderer: the model writes a `draw(ctx, w, h)` function, which is extracted and executed in a **`node:worker_threads` Worker** (`drawCodeWorker.js`) against a Cairo-backed canvas with a 5 s timeout. Four colour variations are derived from the same base image via fixed R/G/B/brightness shifts.
-
-`/ai/generate` queues concurrent requests via `GenerateQueue` (default: 1 active, 2 queued) so simultaneous browser sessions don't race the provider. Queue depth is visible at `GET /ai/status` without spawning a subprocess.
+| `mock` | Server-side procedural gradient fill | Always ready; no keys required |
+| `openai` | HTTPS integration to `gpt-image-1` | `OPENAI_API_KEY` |
+| `codex-canvas` | Official `@openai/codex-sdk` integration | `CODEX_API_KEY` (Codex subscription) |
+| `cursor-canvas` | `@cursor/sdk` `Agent.prompt()` integration | `CURSOR_API_KEY` |
+| `gemini-canvas` | Native `gemini` CLI subprocess | `gemini` executable on `PATH` |
 
 ---
 
-## Getting started
+## AI Robustness System
+
+To ensure a high success rate and eliminate silent failures, Painter AI executes canvas-code generations (written by Codex/Gemini models) through a robust, multi-stage pipeline:
+
+```mermaid
+graph TD
+    A[Model Generates Code] --> B[Execute Code in worker_threads]
+    B --> C{Execution Success?}
+    C -- No --> E[Retry with Error Context]
+    C -- Yes --> D[Run validateInpaint]
+    D -- Valid --> F[Commit Output]
+    D -- Invalid --> E
+    E --> G{Attempts < 3?}
+    G -- Yes --> A
+    G -- No --> H[Procedural Gradient Fallback]
+```
+
+1. **Sandboxed Execution:** Code is executed in a dedicated `node:worker_threads` Worker against a Cairo-backed canvas. Execution is strictly bounded by a 5-second timeout to prevent infinite loops from locking the main event loop.
+2. **Output Validation:** The server runs `validateInpaint()` on the generated pixels and code. It verifies:
+   - The presence of the required `draw(ctx, width, height)` function signature.
+   - Active usage of canvas drawing APIs (`ctx.fillRect`, `ctx.arc`, etc.).
+   - Non-blank and non-solid pixel buffers (unless the prompt specifically requests background removal/deletion).
+3. **Automatic Error Feedback & Retry:** If validation fails or execution crashes, the server automatically starts a **retry loop (up to 3 attempts)**. The exact syntax or validation error details are appended to the next prompt, instructing the model to self-correct.
+4. **Procedural Fallback:** If all 3 generation attempts fail, the server generates a fail-safe procedural gradient blending the surrounding edge colors inward.
+
+---
+
+## Getting Started
 
 ### Prerequisites
-- Node 20+
+- Node.js 20+
 - npm 10+
-- For real AI output: one of the providers configured below
+- A configured downstream provider for real AI operations (e.g. Gemini, OpenAI, or Codex).
 
-### Install & run
+### Install & Run
 
+1. **Install Frontend Dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Install Server Dependencies:**
+   ```bash
+   npm install --prefix server
+   ```
+
+3. **Configure Environment Variables:**
+   ```bash
+   cp server/.env.example server/.env
+   # Open server/.env and add your API keys/model providers
+   ```
+
+4. **Start Development Servers (Vite + Proxy):**
+   ```bash
+   npm run dev
+   ```
+   * The Frontend will open at `http://localhost:5173`.
+   * The Proxy server binds to `http://localhost:5174`.
+
+*macOS shortcut: Double-click `start-dev.command` to automatically launch everything in a new Terminal window.*
+
+### Build & Production
 ```bash
-# Install root (frontend) deps
-npm install
-
-# Install server deps
-npm install --prefix server
-
-# Copy server env and configure at least one provider (see below)
-cp server/.env.example server/.env
-
-# Start both the Vite dev server and the proxy in one terminal
-npm run dev
-```
-
-Frontend: `http://localhost:5173`  
-Proxy:     `http://127.0.0.1:5174`
-
-macOS double-click shortcut: `start-dev.command` (runs `npm run dev` from the repo root).
-
-### Individual processes
-
-```bash
-npm run dev:vite    # frontend only
-npm run dev:server  # proxy only  (from server/: npm run dev)
-```
-
-### Build for production
-
-```bash
-npm run build       # tsc + vite build → dist/
-npm run preview     # serve dist/ locally
+npm run build      # Runs TypeScript check and compiles production asset bundle -> dist/
+npm run preview    # Serves the built production bundle locally
 ```
 
 ---
 
 ## Configuration
 
-Copy `server/.env.example` to `server/.env` and set the relevant keys:
+Set up environment variables in `server/.env`:
 
 ```env
-# Chat copilot (required for AI chat / codex-canvas image provider)
-CODEX_API_KEY=          # from platform.openai.com (Codex subscription)
-CODEX_MODEL=codex-mini-latest
+# Chat Copilot & Codex SDK Settings
+CODEX_API_KEY=
+CODEX_MODEL=codex-mini-latest   # leave blank to use the SDK's own default
 
-# Image generation provider — pick one:
-IMAGE_MODEL_PROVIDER=mock          # procedural fill, no key needed
-# IMAGE_MODEL_PROVIDER=openai      # gpt-image-1
-# IMAGE_MODEL_PROVIDER=codex-canvas
-# IMAGE_MODEL_PROVIDER=cursor-canvas
-# IMAGE_MODEL_PROVIDER=gemini-canvas
+# Primary Image Generation Provider
+# Options: mock | openai | codex-canvas | cursor-canvas | gemini-canvas
+IMAGE_MODEL_PROVIDER=mock
 
-OPENAI_API_KEY=         # required when provider=openai
-CURSOR_API_KEY=         # required when provider=cursor-canvas
-GEMINI_BIN=gemini       # binary name/path for gemini-canvas
+# Downstream API Credentials
+OPENAI_API_KEY=
+CURSOR_API_KEY=
+GEMINI_BIN=gemini
 GEMINI_MODEL=gemini-2.5-pro
 
-# Concurrency (defaults shown)
+# Server Queue Settings (prevents downstream API rate-limits)
 IMAGE_GENERATE_CONCURRENCY=1
 IMAGE_GENERATE_QUEUE_MAX=2
 
+# Port Configuration
 PORT=5174
 ```
-
-The **Settings tab** in the AI panel lets you override provider and model per-session from the browser without restarting the server.
 
 ---
 
 ## Testing
 
+Painter AI features a comprehensive Vitest suite covering canvas-code sandbox rendering, generate queues, persistence, and state handlers.
+
 ```bash
-npm test             # vitest run (all 63 tests)
-npm run test:watch   # vitest watch mode
-npm run typecheck    # tsc --noEmit
-npm run lint         # eslint
+npm test             # Run all tests (76 passing)
+npm run test:watch   # Start Vitest in interactive watch mode
+npm run typecheck    # Run TypeScript compilation checks
+npm run lint         # Run ESLint validation
 ```
 
-Test coverage includes: canvas-code Worker execution, fill tool visited-set and bounds clamping, generate queue concurrency, selection bounds arithmetic, inpaint commit compositing, codex client timeout/abort, provider readiness, and proxy zod validation.
-
 ---
 
-## Bug fixes (v0.2)
+## Known Issues
 
-Seven usability bugs fixed after the initial demo session:
-
-1. **Fill tool infinite loop** — flood fill with ±1 tolerance re-queued already-filled pixels forever; fixed with a `Uint8Array` visited bitset. Coordinate clamping prevents an out-of-bounds index when clicking an edge pixel.
-2. **Canvas Size silent data loss** — Image › Canvas Size destroyed all layers without confirmation; now uses the same dirty-check + confirm guard as New Project.
-3. **Smart-select off-by-one** — selection was `maxX − minX` wide instead of `maxX − minX + 1`, cutting off the rightmost column and bottom row and misaligning inpaints.
-4. **Shape overlay ghost** — starting a new shape stroke didn't clear the overlay, leaving the previous drag's preview ghost after an interrupted stroke.
-5. **CommandBar keyboard hint** — footer read "⌘+↵ generate" when plain Enter already submits; corrected to "↵ generate · ⇧+↵ new line".
-6. **FloatingActions missing `maskBoundsPx`** — Generate / Remove / Reimagine / Restyle buttons omitted `maskBoundsPx` from inpaint requests, preventing canvas-code providers from targeting the edit region.
-7. **Window blur leaves drawing active** — dragging off the window left stroke state live; a `window blur` listener in `CanvasStage` now cancels in-progress strokes and clears overlay marks.
-
----
-
-## Known issues
-
-| Issue | Severity | Notes |
+| Issue | Severity | Workaround & Details |
 |---|---|---|
-| **File > New freezes the tab** | High | New-project canvas reset can block the renderer for 30+ s; workaround: reload the tab |
-| **Silent mock-mode fallback** | Medium | No UI banner when the real provider is unavailable; users see placeholder splotches with no explanation |
-| **Chat input doesn't generate images** | Medium | The chat box is for conversation; image generation requires ⌘K — this is not surfaced prominently |
-| **Eraser keyboard shortcut unbound** | Low | The eraser tool exists in the toolbox but has no keyboard shortcut |
+| **File > New freezes the tab** | High | Resetting a large project can block the renderer for 30+ seconds. Workaround: Reload the browser tab. |
+| **Eraser keyboard shortcut unbound** | Low | The Eraser tool can be clicked in the Toolbox (▢ icon) but lacks a hotkey binding. |
 
 ---
 
-## Project structure
+## Project Structure
 
 ```
-├── src/
-│   ├── ai/               # AI backends, copilot, segmenter, composite
-│   ├── components/
-│   │   ├── AIPanel/      # Chat, History, Settings tabs + op proposals
-│   │   ├── Canvas/       # CanvasStage, SelectionOverlay, FloatingActions, tools/
-│   │   ├── CommandBar/
-│   │   ├── Layers/
-│   │   ├── Palette/
-│   │   ├── Shell/        # AppHeader, MenuBar, StatusBar
-│   │   └── Toolbox/
-│   ├── state/            # editorStore, chatStore, uiStore, settingsStore
-│   └── utils/
-├── server/
-│   └── src/
-│       ├── imageApi/     # providers, canvasCodeRenderer, contextDescriber, drawCodeWorker
-│       ├── routes/       # generate, generateQueue, segment, chat, health, status
-│       └── codex/ cursor/ gemini/
-├── tests/                # 63 vitest tests
-└── docs/
+├── src/                  # React 18 Frontend
+│   ├── ai/               # Server-bound copilot and backend seams (no local mock)
+│   ├── components/       
+│   │   ├── AIPanel/      # Chat, History, and Settings tabs
+│   │   ├── Canvas/       # CanvasStage, selection overlays, and tools (pointer, pencil, brush, fill)
+│   │   ├── CommandBar/   # ⌘K global controller
+│   │   └── Shell/        # Header, Menubar, Statusbar
+│   ├── state/            # Zustand stores (editorStore, chatStore, uiStore, settingsStore)
+│   └── utils/            # Canvas manipulation utilities
+├── server/               # Hono Proxy Server
+│   ├── src/
+│   │   ├── imageApi/     # downstream providers, Cairo workers, and validation logic
+│   │   └── routes/       # generate, chat, segment, and health endpoints
+├── tests/                # 76-test Vitest suite
+└── docs/                 # Historical migration plans and assets
 ```
